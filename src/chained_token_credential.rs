@@ -2,12 +2,12 @@
 // Licensed under the MIT License.
 
 use crate::cache::TokenCache;
-use azure_identity::TokenCredentialOptions;
 use async_lock::RwLock;
 use azure_core::{
     credentials::{AccessToken, TokenCredential},
     error::{Error, ErrorKind},
 };
+use azure_identity::TokenCredentialOptions;
 use std::sync::Arc;
 
 #[derive(Debug, Default)]
