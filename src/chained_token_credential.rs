@@ -11,13 +11,12 @@ use azure_identity::TokenCredentialOptions;
 use std::sync::Arc;
 
 #[derive(Debug, Default)]
-/// ChainedTokenCredentialOptions contains optional parameters for ChainedTokenCredential.
+/// [`ChainedTokenCredentialOptions`] contains optional parameters for [`ChainedTokenCredential`].
 pub struct ChainedTokenCredentialOptions {
     pub retry_sources: bool,
     pub credential_options: TokenCredentialOptions,
 }
 
-// TODO: Should probably remove this once we consolidate and unify credentials.
 impl From<TokenCredentialOptions> for ChainedTokenCredentialOptions {
     fn from(credential_options: TokenCredentialOptions) -> Self {
         Self {
@@ -27,7 +26,7 @@ impl From<TokenCredentialOptions> for ChainedTokenCredentialOptions {
     }
 }
 
-/// Provides a user-configurable `TokenCredential` authentication flow for applications that will be deployed to Azure.
+/// Provides a user-configurable [`TokenCredential`] authentication flow for applications that will be deployed to Azure.
 ///
 /// The credential types are tried in the order specified by the user.
 #[derive(Debug)]
@@ -40,6 +39,7 @@ pub struct ChainedTokenCredential {
 }
 
 impl ChainedTokenCredential {
+    #[must_use]
     /// Create a `ChainedTokenCredential` with options.
     pub fn new(options: Option<ChainedTokenCredentialOptions>) -> Self {
         Self {
@@ -78,7 +78,10 @@ impl ChainedTokenCredential {
 
     /// Try to fetch a token using each of the credential sources until one succeeds
     async fn get_token(&self, scopes: &[&str]) -> azure_core::Result<AccessToken> {
-        if !self.options.retry_sources {
+        if self.options.retry_sources {
+            // if we are retrying sources, we don't need to cache the successful credential
+            Ok(self.get_token_impl(scopes).await?.1)
+        } else {
             if let Some(entry) = self.successful_credential.read().await.as_ref() {
                 return entry.get_token(scopes).await;
             }
@@ -90,9 +93,6 @@ impl ChainedTokenCredential {
             let (entry, token) = self.get_token_impl(scopes).await?;
             *lock = Some(entry);
             Ok(token)
-        } else {
-            // if we are retrying sources, we don't need to cache the successful credential
-            Ok(self.get_token_impl(scopes).await?.1)
         }
     }
 }
