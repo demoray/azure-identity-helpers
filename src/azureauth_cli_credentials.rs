@@ -85,16 +85,19 @@ impl AzureauthCliCredential {
         }
     }
 
+    #[must_use]
     pub fn add_mode(mut self, mode: AzureauthCliMode) -> Self {
         self.modes.push(mode);
         self
     }
 
+    #[must_use]
     pub fn with_modes(mut self, modes: Vec<AzureauthCliMode>) -> Self {
         self.modes = modes;
         self
     }
 
+    #[must_use]
     pub fn with_prompt_hint<S>(mut self, hint: S) -> Self
     where
         S: Into<String>,
@@ -210,10 +213,12 @@ mod tests {
 
         let response: CliTokenResponse = from_json(src)?;
         assert_eq!(response.access_token.secret(), "security token here");
-        assert_eq!(
-            response.expires_on,
-            OffsetDateTime::from_unix_timestamp(1700166595).expect("known valid date")
-        );
+
+        #[allow(clippy::expect_used)]
+        let expected =
+            OffsetDateTime::from_unix_timestamp(1_700_166_595).expect("known valid date");
+
+        assert_eq!(response.expires_on, expected);
 
         Ok(())
     }

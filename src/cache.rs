@@ -82,6 +82,12 @@ mod tests {
             }
         }
 
+        /// The `get_token` method is mocked to return a token with an incrementing
+        /// counter in the token string. This is used to test that the cache.
+        ///
+        /// In order to test the cache, this needs to `async` as the cache operates
+        /// futures for callbacks.
+        #[allow(clippy::unused_async)]
         async fn get_token(&self, scopes: &[&str]) -> azure_core::Result<AccessToken> {
             // Include an incrementing counter in the token to track how many times the token has been refreshed
             let mut call_count = self.get_token_call_count.lock().unwrap();
