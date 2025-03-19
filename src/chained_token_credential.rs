@@ -9,6 +9,7 @@ use azure_core::{
 };
 use azure_identity::TokenCredentialOptions;
 use std::sync::Arc;
+use tracing::debug;
 
 #[derive(Debug, Default)]
 /// [`ChainedTokenCredentialOptions`] contains optional parameters for [`ChainedTokenCredential`].
@@ -61,6 +62,7 @@ impl ChainedTokenCredential {
     ) -> azure_core::Result<(Arc<dyn TokenCredential>, AccessToken)> {
         let mut errors = Vec::new();
         for source in &self.sources {
+            debug!("Attempting to get token from source: {source:?}");
             let token_res = source.get_token(scopes).await;
 
             match token_res {
