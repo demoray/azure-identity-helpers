@@ -24,5 +24,4 @@ tracing = "0.1.41"
 url = "2.5.4"
 
 [dev-dependencies]
-parking_lot = "0.12.3"
 tokio = "1.44.1"
