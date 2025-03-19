@@ -11,8 +11,7 @@ use azure_core::{
     json::from_json,
 };
 use serde::Deserialize;
-use std::fmt;
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 use url::form_urlencoded;
 
 /// Exchange a refresh token for a new access token and refresh token.
