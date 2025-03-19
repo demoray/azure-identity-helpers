@@ -53,7 +53,7 @@ impl DeviceCodeCredential {
             .await?;
             let token = AccessToken {
                 token: response.access_token().to_owned(),
-                expires_on: OffsetDateTime::now_utc() + Duration::new(response.expires_in(), 0),
+                expires_on: convert_expires_in(response.expires_in()),
             };
             refresh_tokens.insert(scopes_owned, response.refresh_token().to_owned());
             return Ok(token);
@@ -84,7 +84,7 @@ impl DeviceCodeCredential {
 
         let token = AccessToken {
             token: auth.access_token().to_owned(),
-            expires_on: OffsetDateTime::now_utc() + Duration::new(auth.expires_in, 0),
+            expires_on: convert_expires_in(auth.expires_in),
         };
 
         if let Some(refresh_token) = auth.refresh_token() {
@@ -107,4 +107,8 @@ impl TokenCredential for DeviceCodeCredential {
         self.refresh_tokens.lock().await.clear();
         self.cache.clear().await
     }
+}
+
+fn convert_expires_in(seconds: u64) -> OffsetDateTime {
+    OffsetDateTime::now_utc() + Duration::new(seconds, 0)
 }
