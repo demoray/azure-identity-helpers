@@ -5,7 +5,7 @@ use azure_core::{
     json::from_json,
 };
 use serde::Deserialize;
-use std::str;
+use std::{str, sync::Arc};
 use time::OffsetDateTime;
 use tokio::process::Command;
 
@@ -71,18 +71,18 @@ pub struct AzureauthCliCredential {
 
 impl AzureauthCliCredential {
     /// Create a new `AzureCliCredential`
-    pub fn new<T, C>(tenant_id: T, client_id: C) -> Self
+    pub fn new<T, C>(tenant_id: T, client_id: C) -> azure_core::Result<Arc<Self>>
     where
         T: Into<String>,
         C: Into<String>,
     {
-        Self {
+        Ok(Arc::new(Self {
             tenant_id: tenant_id.into(),
             client_id: client_id.into(),
             modes: Vec::new(),
             prompt_hint: None,
             cache: TokenCache::new(),
-        }
+        }))
     }
 
     #[must_use]
