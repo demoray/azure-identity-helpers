@@ -21,6 +21,7 @@ serde = "1.0.219"
 time = "0.3.40"
 tokio = { version = "1.44.1", features = ["process"] }
 tracing = "0.1.41"
+url = "2.5.4"
 
 [dev-dependencies]
 parking_lot = "0.12.3"
