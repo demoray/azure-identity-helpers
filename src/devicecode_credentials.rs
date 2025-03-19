@@ -74,7 +74,7 @@ impl DeviceCodeCredential {
             let Some(response) = stream.next().await else {
                 return Err(Error::message(
                     ErrorKind::Credential,
-                    "azureauth CLI did not return a response",
+                    "device code did not return a response",
                 ));
             };
             if let Ok(auth) = response {
