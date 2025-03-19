@@ -107,24 +107,10 @@ impl AzureauthCliCredential {
     }
 
     async fn get_access_token(&self, scopes: &[&str]) -> azure_core::Result<AccessToken> {
-        // try using azureauth.exe first, such that azureauth through WSL is
-        // used first if possible.
-        #[cfg(target_os = "windows")]
-        let which = "where";
-        #[cfg(not(target_os = "windows"))]
-        let which = "which";
-
-        let (cmd_name, use_windows_features) = if Command::new(which)
-            .arg("azureauth.exe")
-            .output()
+        let cmd_name = find_azureauth()
             .await
-            .map(|x| x.status.success())
-            .unwrap_or(false)
-        {
-            ("azureauth.exe", true)
-        } else {
-            ("azureauth", false)
-        };
+            .ok_or_else(|| Error::message(ErrorKind::Other, "azureauth CLI not installed"))?;
+        let use_windows_features = cmd_name == "azureauth.exe";
 
         let mut cmd = Command::new(cmd_name);
         cmd.args([
@@ -196,6 +182,31 @@ impl TokenCredential for AzureauthCliCredential {
         // But clearing internally will force a new call to azureauth which handles refreshing the MSAL cache and always returns a valid token.
         self.cache.clear().await
     }
+}
+
+/// Find the azureauth CLI executable
+///
+/// This function checks for the presence of `azureauth.exe` and `azureauth` in the system's `PATH`.
+///
+/// To support using azureauth within WSL, this checks for `azureauth.exe` first.
+pub async fn find_azureauth() -> Option<&'static str> {
+    #[cfg(target_os = "windows")]
+    let which = "where";
+    #[cfg(not(target_os = "windows"))]
+    let which = "which";
+
+    for &exe in &["azureauth.exe", "azureauth"] {
+        if Command::new(which)
+            .arg(exe)
+            .output()
+            .await
+            .map(|x| x.status.success())
+            .unwrap_or(false)
+        {
+            return Some(exe);
+        }
+    }
+    None
 }
 
 #[cfg(test)]
