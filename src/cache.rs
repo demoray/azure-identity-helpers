@@ -65,7 +65,8 @@ impl TokenCache {
 mod tests {
     use super::*;
     use azure_core::credentials::Secret;
-    use std::{sync::Mutex, time::Duration};
+    use parking_lot::Mutex;
+    use std::time::Duration;
     use time::OffsetDateTime;
 
     #[derive(Debug)]
@@ -90,7 +91,7 @@ mod tests {
         #[allow(clippy::unused_async)]
         async fn get_token(&self, scopes: &[&str]) -> azure_core::Result<AccessToken> {
             // Include an incrementing counter in the token to track how many times the token has been refreshed
-            let mut call_count = self.get_token_call_count.lock().unwrap();
+            let mut call_count = self.get_token_call_count.lock();
             *call_count += 1;
             Ok(AccessToken {
                 token: Secret::new(format!(
