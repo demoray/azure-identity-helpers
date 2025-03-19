@@ -16,6 +16,7 @@ token handling.
 - `cache`: Re-implements the azure-identity caching provider
 - `chained_token_credential`: Implements credential chaining to try multiple authentication methods.  This method has been added to an unreleased version of the upstream `azure_identity` crate.  This will be removed once the updated upstream crate is released.
 - `device_code`: Provides device code flow authentication support for Azure services.  Originally from `azure_identity` 0.20.0.
+- `devicecode_credentials`: Implements a credential that can authenticate using device code flow. Uses the `device_code` module's functionality.
 - `refresh_token`: Handles refresh token operations for maintaining authentication sessions.  Originally from `azure_identity` 0.20.0.
 
 
