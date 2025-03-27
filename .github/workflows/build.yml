@@ -21,15 +21,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-    - uses: Swatinem/rust-cache@v2
-    - uses: baptiste0928/cargo-install@v3
+    - run: rustup update
+      shell: bash
+    - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6
+    - uses: baptiste0928/cargo-install@91c5da15570085bcde6f4d7aed98cb82d6769fd3
       with:
         crate: typos-cli
-    - uses: baptiste0928/cargo-install@v3
+    - uses: baptiste0928/cargo-install@91c5da15570085bcde6f4d7aed98cb82d6769fd3
       with:
         crate: cargo-deny
-    - uses: baptiste0928/cargo-install@v3
+    - uses: baptiste0928/cargo-install@91c5da15570085bcde6f4d7aed98cb82d6769fd3
       with:
         crate: cargo-readme
     - run: ./eng/build.sh
