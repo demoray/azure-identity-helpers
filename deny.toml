@@ -3,8 +3,6 @@ all-features = true
 targets = [{ triple = "x86_64-pc-windows-msvc" }, { triple = "x86_64-unknown-linux-gnu" }, { triple = "x86_64-unknown-linux-musl" }]
 
 [advisories]
-# azure-core uses `paste`
-ignore = ["RUSTSEC-2024-0436"]
 version = 2
 yanked = "deny"
 

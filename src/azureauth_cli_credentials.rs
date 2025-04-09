@@ -144,7 +144,7 @@ impl AzureauthCliCredential {
             }
         }
 
-        let cmd = cmd.iter().map(|arg| arg.as_ref()).collect::<Vec<&OsStr>>();
+        let cmd = cmd.iter().map(AsRef::as_ref).collect::<Vec<&OsStr>>();
 
         let result = self.executor.run(cmd_name, &cmd).await;
 

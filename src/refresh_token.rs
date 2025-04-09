@@ -31,7 +31,7 @@ pub async fn exchange(
         // optionally add the client secret
         if let Some(client_secret) = client_secret {
             encoded = encoded.append_pair("client_secret", client_secret);
-        };
+        }
         encoded.finish()
     };
 
