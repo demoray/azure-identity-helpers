@@ -8,20 +8,19 @@ keywords = ["azure"]
 license = "MIT"
 name = "azure-identity-helpers"
 repository = "https://github.com/demoray/azure-identity-helpers"
-version = "0.0.3"
+version = "0.0.4"
 
 [dependencies]
-async-lock = "3.4.0"
-async-trait = "0.1.88"
-azure_core = { version = "0.22.0", default-features = false }
-azure_identity = { version = "0.22.0", default-features = false }
-futures = "0.3.31"
-oauth2 = { version = "5.0.0", default-features = false }
-serde = "1.0.219"
-time = "0.3.41"
-tokio = { version = "1.44.1", features = ["process"] }
-tracing = "0.1.41"
-url = "2.5.4"
+async-lock = "3.4"
+async-trait = "0.1"
+azure_core = { version = "0.23", default-features = false }
+azure_identity = { version = "0.23", default-features = false }
+futures = "0.3"
+oauth2 = { version = "5.0", default-features = false }
+serde = "1.0"
+time = "0.3"
+tracing = "0.1"
+url = "2.5"
 
 [dev-dependencies]
-tokio = "1.44.1"
+tokio = "1.44"

@@ -102,11 +102,6 @@ impl TokenCredential for DeviceCodeCredential {
             .get_token(scopes, self.get_access_token(scopes))
             .await
     }
-
-    async fn clear_cache(&self) -> azure_core::Result<()> {
-        self.refresh_tokens.lock().await.clear();
-        self.cache.clear().await
-    }
 }
 
 fn convert_expires_in(seconds: u64) -> OffsetDateTime {

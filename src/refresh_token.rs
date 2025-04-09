@@ -4,10 +4,9 @@
 //! Refresh tokens.
 
 use azure_core::{
-    HttpClient, Method, Request, Url, content_type,
     credentials::Secret,
     error::{Error, ErrorKind, ResultExt, http_response_from_body},
-    headers,
+    http::{HttpClient, Method, Request, Url, headers, headers::content_type},
     json::from_json,
 };
 use serde::Deserialize;
@@ -32,7 +31,7 @@ pub async fn exchange(
         // optionally add the client secret
         if let Some(client_secret) = client_secret {
             encoded = encoded.append_pair("client_secret", client_secret);
-        };
+        }
         encoded.finish()
     };
 
@@ -155,7 +154,7 @@ mod tests {
     #[test]
     fn ensure_that_exchange_is_send() {
         require_send(exchange(
-            azure_core::new_http_client(),
+            azure_core::http::new_http_client(),
             "UNUSED",
             "UNUSED",
             None,
