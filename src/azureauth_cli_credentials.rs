@@ -3,11 +3,11 @@ use azure_core::{
     credentials::{AccessToken, Secret, TokenCredential},
     error::{Error, ErrorKind},
     json::from_json,
+    process::{Executor, new_executor},
 };
 use serde::Deserialize;
-use std::{str, sync::Arc};
+use std::{ffi::OsStr, str, sync::Arc};
 use time::OffsetDateTime;
-use tokio::process::Command;
 
 mod unix_date_string {
     use azure_core::error::{Error, ErrorKind};
@@ -67,6 +67,7 @@ pub struct AzureauthCliCredential {
     modes: Vec<AzureauthCliMode>,
     prompt_hint: Option<String>,
     cache: TokenCache,
+    executor: Arc<dyn Executor>,
 }
 
 impl AzureauthCliCredential {
@@ -82,6 +83,7 @@ impl AzureauthCliCredential {
             modes: Vec::new(),
             prompt_hint: None,
             cache: TokenCache::new(),
+            executor: new_executor(),
         }))
     }
 
@@ -112,8 +114,8 @@ impl AzureauthCliCredential {
             .ok_or_else(|| Error::message(ErrorKind::Other, "azureauth CLI not installed"))?;
         let use_windows_features = cmd_name == "azureauth.exe";
 
-        let mut cmd = Command::new(cmd_name);
-        cmd.args([
+        // self.credential_options.
+        let mut cmd = vec![
             "aad",
             "--client",
             self.client_id.as_str(),
@@ -121,14 +123,14 @@ impl AzureauthCliCredential {
             self.tenant_id.as_str(),
             "--output",
             "json",
-        ]);
+        ];
 
         for scope in scopes {
-            cmd.args(["--scope", scope]);
+            cmd.extend(["--scope", scope]);
         }
 
         if let Some(prompt_hint) = &self.prompt_hint {
-            cmd.args(["--prompt-hint", prompt_hint]);
+            cmd.extend(["--prompt-hint", prompt_hint]);
         }
 
         for mode in &self.modes {
@@ -138,11 +140,13 @@ impl AzureauthCliCredential {
                 AzureauthCliMode::Broker => use_windows_features.then_some("broker"),
                 AzureauthCliMode::Web => Some("web"),
             } {
-                cmd.args(["--mode", mode]);
+                cmd.extend(["--mode", mode]);
             }
         }
 
-        let result = cmd.output().await;
+        let cmd = cmd.iter().map(|arg| arg.as_ref()).collect::<Vec<&OsStr>>();
+
+        let result = self.executor.run(cmd_name, &cmd).await;
 
         let output = result.map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => {
@@ -176,12 +180,6 @@ impl TokenCredential for AzureauthCliCredential {
             .get_token(scopes, self.get_access_token(scopes))
             .await
     }
-
-    async fn clear_cache(&self) -> azure_core::Result<()> {
-        // Clear internal cache only as there is no guarantee that the underlying MSAL caches will be cleared through azureauth.
-        // But clearing internally will force a new call to azureauth which handles refreshing the MSAL cache and always returns a valid token.
-        self.cache.clear().await
-    }
 }
 
 /// Find the azureauth CLI executable
@@ -189,16 +187,15 @@ impl TokenCredential for AzureauthCliCredential {
 /// This function checks for the presence of `azureauth.exe` and `azureauth` in the system's `PATH`.
 ///
 /// To support using azureauth within WSL, this checks for `azureauth.exe` first.
-pub async fn find_azureauth() -> Option<&'static str> {
+pub async fn find_azureauth() -> Option<&'static OsStr> {
     #[cfg(target_os = "windows")]
     let which = "where";
     #[cfg(not(target_os = "windows"))]
     let which = "which";
 
-    for &exe in &["azureauth.exe", "azureauth"] {
-        if Command::new(which)
-            .arg(exe)
-            .output()
+    for &exe in &[OsStr::new("azureauth.exe"), OsStr::new("azureauth")] {
+        if new_executor()
+            .run(OsStr::new(which), &[exe])
             .await
             .map(|x| x.status.success())
             .unwrap_or(false)

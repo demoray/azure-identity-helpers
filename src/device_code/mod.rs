@@ -9,9 +9,10 @@
 mod device_code_responses;
 
 use azure_core::{
-    HttpClient, Method, Request, Response, Url, content_type,
     error::{Error, ErrorKind, http_response_from_body},
-    headers,
+    http::{
+        HttpClient, Method, Request, Response, Url, headers, headers::content_type, new_http_client,
+    },
     json::from_json,
     sleep::sleep,
 };
@@ -131,7 +132,7 @@ impl DeviceCodePhaseOneResponse<'_> {
                         let http_client = self
                             .http_client
                             .clone()
-                            .unwrap_or_else(|| azure_core::new_http_client());
+                            .unwrap_or_else(|| new_http_client());
 
                         match post_form(http_client.clone(), url, encoded).await {
                             Ok(rsp) => {
@@ -198,11 +199,6 @@ mod tests {
 
     #[test]
     fn ensure_that_start_is_send() {
-        require_send(start(
-            azure_core::new_http_client(),
-            "UNUSED",
-            "UNUSED",
-            &[],
-        ));
+        require_send(start(new_http_client(), "UNUSED", "UNUSED", &[]));
     }
 }
