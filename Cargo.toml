@@ -13,7 +13,7 @@ version = "0.0.5"
 [dependencies]
 async-lock = "3.4"
 async-trait = "0.1"
-azure_core = { version = "0.24", default-features = false }
+azure_core = { version = "0.25", default-features = false }
 azure_identity = { version = "0.24", default-features = false }
 futures = "0.3"
 oauth2 = { version = "5.0", default-features = false }
