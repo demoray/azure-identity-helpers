@@ -1,6 +1,6 @@
 use crate::cache::TokenCache;
 use azure_core::{
-    credentials::{AccessToken, Secret, TokenCredential},
+    credentials::{AccessToken, Secret, TokenCredential, TokenRequestOptions},
     error::{Error, ErrorKind},
     json::from_json,
     process::{Executor, new_executor},
@@ -108,7 +108,11 @@ impl AzureauthCliCredential {
         self
     }
 
-    async fn get_access_token(&self, scopes: &[&str]) -> azure_core::Result<AccessToken> {
+    async fn get_access_token(
+        &self,
+        scopes: &[&str],
+        _options: Option<TokenRequestOptions>,
+    ) -> azure_core::Result<AccessToken> {
         let cmd_name = find_azureauth()
             .await
             .ok_or_else(|| Error::message(ErrorKind::Other, "azureauth CLI not installed"))?;
@@ -175,9 +179,13 @@ impl AzureauthCliCredential {
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 impl TokenCredential for AzureauthCliCredential {
-    async fn get_token(&self, scopes: &[&str]) -> azure_core::Result<AccessToken> {
+    async fn get_token(
+        &self,
+        scopes: &[&str],
+        options: Option<TokenRequestOptions>,
+    ) -> azure_core::Result<AccessToken> {
         self.cache
-            .get_token(scopes, self.get_access_token(scopes))
+            .get_token(scopes, options, |s, o| self.get_access_token(s, o))
             .await
     }
 }

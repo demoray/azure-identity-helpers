@@ -11,7 +11,8 @@ mod device_code_responses;
 use azure_core::{
     error::{Error, ErrorKind, http_response_from_body},
     http::{
-        HttpClient, Method, Request, Response, Url, headers, headers::content_type, new_http_client,
+        HttpClient, Method, RawResponse, Request, Url, headers, headers::content_type,
+        new_http_client,
     },
     json::from_json,
     sleep::sleep,
@@ -43,7 +44,7 @@ where
 
     let rsp = post_form(http_client.clone(), url, encoded).await?;
     let rsp_status = rsp.status();
-    let rsp_body = rsp.into_raw_body().collect().await?;
+    let rsp_body = rsp.into_body().collect().await?;
     if !rsp_status.is_success() {
         return Err(http_response_from_body(rsp_status, &rsp_body).into_error());
     }
@@ -137,7 +138,7 @@ impl DeviceCodePhaseOneResponse<'_> {
                         match post_form(http_client.clone(), url, encoded).await {
                             Ok(rsp) => {
                                 let rsp_status = rsp.status();
-                                let rsp_body = match rsp.into_raw_body().collect().await {
+                                let rsp_body = match rsp.into_body().collect().await {
                                     Ok(b) => b,
                                     Err(e) => return Some((Err(e), NextState::Finish)),
                                 };
@@ -180,7 +181,7 @@ async fn post_form(
     http_client: Arc<dyn HttpClient>,
     url: &str,
     form_body: String,
-) -> azure_core::Result<Response> {
+) -> azure_core::Result<RawResponse> {
     let url = Url::parse(url)?;
     let mut req = Request::new(url, Method::Post);
     req.insert_header(

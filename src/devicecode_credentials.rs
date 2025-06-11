@@ -1,7 +1,7 @@
 use crate::{cache::TokenCache, device_code::start, refresh_token::exchange};
 use async_lock::Mutex;
 use azure_core::{
-    credentials::{AccessToken, Secret, TokenCredential},
+    credentials::{AccessToken, Secret, TokenCredential, TokenRequestOptions},
     error::{Error, ErrorKind},
 };
 use azure_identity::TokenCredentialOptions;
@@ -39,7 +39,11 @@ impl DeviceCodeCredential {
         }))
     }
 
-    async fn get_access_token(&self, scopes: &[&str]) -> azure_core::Result<AccessToken> {
+    async fn get_access_token(
+        &self,
+        scopes: &[&str],
+        _options: Option<TokenRequestOptions>,
+    ) -> azure_core::Result<AccessToken> {
         let scopes_owned = scopes.iter().map(ToString::to_string).collect::<Vec<_>>();
         let mut refresh_tokens = self.refresh_tokens.lock().await;
         if let Some(refresh_token) = refresh_tokens.remove(&scopes_owned) {
@@ -97,9 +101,13 @@ impl DeviceCodeCredential {
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 impl TokenCredential for DeviceCodeCredential {
-    async fn get_token(&self, scopes: &[&str]) -> azure_core::Result<AccessToken> {
+    async fn get_token(
+        &self,
+        scopes: &[&str],
+        options: Option<TokenRequestOptions>,
+    ) -> azure_core::Result<AccessToken> {
         self.cache
-            .get_token(scopes, self.get_access_token(scopes))
+            .get_token(scopes, options, |s, o| self.get_access_token(s, o))
             .await
     }
 }
