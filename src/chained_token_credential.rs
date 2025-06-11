@@ -4,7 +4,7 @@
 use crate::cache::TokenCache;
 use async_lock::RwLock;
 use azure_core::{
-    credentials::{AccessToken, TokenCredential},
+    credentials::{AccessToken, TokenCredential, TokenRequestOptions},
     error::{Error, ErrorKind},
 };
 use azure_identity::TokenCredentialOptions;
@@ -59,11 +59,12 @@ impl ChainedTokenCredential {
     async fn get_token_impl(
         &self,
         scopes: &[&str],
+        options: Option<TokenRequestOptions>,
     ) -> azure_core::Result<(Arc<dyn TokenCredential>, AccessToken)> {
         let mut errors = Vec::new();
         for source in &self.sources {
             debug!("Attempting to get token from source: {source:?}");
-            let token_res = source.get_token(scopes).await;
+            let token_res = source.get_token(scopes, options.clone()).await;
 
             match token_res {
                 Ok(token) => return Ok((source.clone(), token)),
@@ -79,20 +80,24 @@ impl ChainedTokenCredential {
     }
 
     /// Try to fetch a token using each of the credential sources until one succeeds
-    async fn get_token(&self, scopes: &[&str]) -> azure_core::Result<AccessToken> {
+    async fn get_token(
+        &self,
+        scopes: &[&str],
+        options: Option<TokenRequestOptions>,
+    ) -> azure_core::Result<AccessToken> {
         if self.options.retry_sources {
             // if we are retrying sources, we don't need to cache the successful credential
-            Ok(self.get_token_impl(scopes).await?.1)
+            Ok(self.get_token_impl(scopes, options).await?.1)
         } else {
             if let Some(entry) = self.successful_credential.read().await.as_ref() {
-                return entry.get_token(scopes).await;
+                return entry.get_token(scopes, options).await;
             }
             let mut lock = self.successful_credential.write().await;
             // if after getting the write lock, we find that another thread has already found a credential, use that.
             if let Some(entry) = lock.as_ref() {
-                return entry.get_token(scopes).await;
+                return entry.get_token(scopes, options).await;
             }
-            let (entry, token) = self.get_token_impl(scopes).await?;
+            let (entry, token) = self.get_token_impl(scopes, options).await?;
             *lock = Some(entry);
             Ok(token)
         }
@@ -102,8 +107,14 @@ impl ChainedTokenCredential {
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 impl TokenCredential for ChainedTokenCredential {
-    async fn get_token(&self, scopes: &[&str]) -> azure_core::Result<AccessToken> {
-        self.cache.get_token(scopes, self.get_token(scopes)).await
+    async fn get_token(
+        &self,
+        scopes: &[&str],
+        options: Option<TokenRequestOptions>,
+    ) -> azure_core::Result<AccessToken> {
+        self.cache
+            .get_token(scopes, options, |s, o| self.get_token(s, o))
+            .await
     }
 }
 
