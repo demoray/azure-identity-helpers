@@ -8,7 +8,7 @@ keywords = ["azure"]
 license = "MIT"
 name = "azure-identity-helpers"
 repository = "https://github.com/demoray/azure-identity-helpers"
-version = "0.0.6"
+version = "0.0.7"
 
 [dependencies]
 async-lock = "3.4"
