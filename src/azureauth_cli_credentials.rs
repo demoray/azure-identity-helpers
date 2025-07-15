@@ -3,8 +3,8 @@ use azure_core::{
     credentials::{AccessToken, Secret, TokenCredential, TokenRequestOptions},
     error::{Error, ErrorKind},
     json::from_json,
-    process::{Executor, new_executor},
 };
+use azure_identity::{Executor, new_executor};
 use serde::Deserialize;
 use std::{ffi::OsStr, str, sync::Arc};
 use time::OffsetDateTime;
