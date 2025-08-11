@@ -39,11 +39,11 @@ impl TokenCache {
     {
         let token_cache = self.0.read().await;
         let scopes_owned = scopes.iter().map(ToString::to_string).collect::<Vec<_>>();
-        if let Some(token) = token_cache.get(&scopes_owned) {
-            if !should_refresh(token) {
-                trace!("returning cached token");
-                return Ok(token.clone());
-            }
+        if let Some(token) = token_cache.get(&scopes_owned)
+            && !should_refresh(token)
+        {
+            trace!("returning cached token");
+            return Ok(token.clone());
         }
 
         // otherwise, drop the read lock and get a write lock to refresh the token
@@ -52,11 +52,11 @@ impl TokenCache {
 
         // check again in case another thread refreshed the token while we were
         // waiting on the write lock
-        if let Some(token) = token_cache.get(&scopes_owned) {
-            if !should_refresh(token) {
-                trace!("returning token that was updated while waiting on write lock");
-                return Ok(token.clone());
-            }
+        if let Some(token) = token_cache.get(&scopes_owned)
+            && !should_refresh(token)
+        {
+            trace!("returning token that was updated while waiting on write lock");
+            return Ok(token.clone());
         }
 
         trace!("token cache miss");
