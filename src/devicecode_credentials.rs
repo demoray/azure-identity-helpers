@@ -4,7 +4,6 @@ use azure_core::{
     credentials::{AccessToken, Secret, TokenCredential, TokenRequestOptions},
     error::{Error, ErrorKind},
 };
-use azure_identity::TokenCredentialOptions;
 use futures::stream::StreamExt;
 use std::{collections::BTreeMap, str, sync::Arc, time::Duration};
 use time::OffsetDateTime;
@@ -16,16 +15,11 @@ pub struct DeviceCodeCredential {
     client_id: String,
     cache: TokenCache,
     refresh_tokens: Mutex<BTreeMap<Vec<String>, Secret>>,
-    options: TokenCredentialOptions,
 }
 
 impl DeviceCodeCredential {
     /// Create a new `DeviceCodeCredential` with the specified tenant ID, client ID, and options.
-    pub fn new<T, C>(
-        tenant_id: T,
-        client_id: C,
-        options: TokenCredentialOptions,
-    ) -> azure_core::Result<Arc<Self>>
+    pub fn new<T, C>(tenant_id: T, client_id: C) -> azure_core::Result<Arc<Self>>
     where
         T: Into<String>,
         C: Into<String>,
@@ -35,20 +29,18 @@ impl DeviceCodeCredential {
             client_id: client_id.into(),
             cache: TokenCache::new(),
             refresh_tokens: Mutex::new(BTreeMap::new()),
-            options,
         }))
     }
 
     async fn get_access_token(
         &self,
         scopes: &[&str],
-        _options: Option<TokenRequestOptions>,
+        _options: Option<TokenRequestOptions<'_>>,
     ) -> azure_core::Result<AccessToken> {
         let scopes_owned = scopes.iter().map(ToString::to_string).collect::<Vec<_>>();
         let mut refresh_tokens = self.refresh_tokens.lock().await;
         if let Some(refresh_token) = refresh_tokens.remove(&scopes_owned) {
             let response = exchange(
-                self.options.http_client(),
                 self.tenant_id.as_str(),
                 &self.client_id,
                 None,
@@ -63,13 +55,7 @@ impl DeviceCodeCredential {
             return Ok(token);
         }
 
-        let flow = start(
-            self.options.http_client(),
-            self.tenant_id.to_string(),
-            self.client_id.as_str(),
-            scopes,
-        )
-        .await?;
+        let flow = start(self.tenant_id.to_string(), self.client_id.as_str(), scopes).await?;
 
         eprintln!("{}", flow.message());
 
@@ -104,7 +90,7 @@ impl TokenCredential for DeviceCodeCredential {
     async fn get_token(
         &self,
         scopes: &[&str],
-        options: Option<TokenRequestOptions>,
+        options: Option<TokenRequestOptions<'_>>,
     ) -> azure_core::Result<AccessToken> {
         self.cache
             .get_token(scopes, options, |s, o| self.get_access_token(s, o))
