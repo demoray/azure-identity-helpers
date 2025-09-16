@@ -5,23 +5,27 @@
 
 use azure_core::{
     credentials::Secret,
-    error::{Error, ErrorKind, ResultExt, http_response_from_body},
-    http::{HttpClient, Method, Request, Url, headers, headers::content_type},
-    json::from_json,
+    error::{Error, ErrorKind, ResultExt},
+    http::{
+        ClientOptions, Context, Method, Pipeline, Request, Url,
+        headers::{self, content_type},
+    },
 };
 use serde::Deserialize;
-use std::{fmt, sync::Arc};
+use std::fmt;
 use url::form_urlencoded;
 
 /// Exchange a refresh token for a new access token and refresh token.
 #[allow(dead_code)]
 pub async fn exchange(
-    http_client: Arc<dyn HttpClient>,
     tenant_id: &str,
     client_id: &str,
     client_secret: Option<&str>,
     refresh_token: &Secret,
 ) -> azure_core::Result<RefreshTokenResponse> {
+    let pipeline = Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None);
+    let ctx = Context::new();
+
     let encoded = {
         let mut encoded = &mut form_urlencoded::Serializer::new(String::new());
         encoded = encoded
@@ -46,16 +50,22 @@ pub async fn exchange(
     );
     req.set_body(encoded);
 
-    let rsp = http_client.execute_request(&req).await?;
-    let rsp_status = rsp.status();
-
-    if rsp_status.is_success() {
-        rsp.into_body().json().await.map_kind(ErrorKind::Credential)
+    let result = pipeline.send(&ctx, &mut req).await?;
+    let status = result.status();
+    if status.is_success() {
+        result
+            .into_body()
+            .json()
+            .await
+            .map_kind(ErrorKind::Credential)
     } else {
-        let rsp_body = rsp.into_body().collect().await?;
-        let token_error: RefreshTokenError =
-            from_json(&rsp_body).map_err(|_| http_response_from_body(rsp_status, &rsp_body))?;
-        Err(Error::new(ErrorKind::Credential, token_error))
+        Err(Error::message(
+            ErrorKind::Credential,
+            format!(
+                "the request failed: {:?}",
+                result.into_body().collect().await?
+            ),
+        ))
     }
 }
 
@@ -153,12 +163,6 @@ mod tests {
 
     #[test]
     fn ensure_that_exchange_is_send() {
-        require_send(exchange(
-            azure_core::http::new_http_client(),
-            "UNUSED",
-            "UNUSED",
-            None,
-            &Secret::new("UNUSED"),
-        ));
+        require_send(exchange("UNUSED", "UNUSED", None, &Secret::new("UNUSED")));
     }
 }

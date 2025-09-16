@@ -111,7 +111,7 @@ impl AzureauthCliCredential {
     async fn get_access_token(
         &self,
         scopes: &[&str],
-        _options: Option<TokenRequestOptions>,
+        _options: Option<TokenRequestOptions<'_>>,
     ) -> azure_core::Result<AccessToken> {
         let cmd_name = find_azureauth()
             .await
@@ -182,7 +182,7 @@ impl TokenCredential for AzureauthCliCredential {
     async fn get_token(
         &self,
         scopes: &[&str],
-        options: Option<TokenRequestOptions>,
+        options: Option<TokenRequestOptions<'_>>,
     ) -> azure_core::Result<AccessToken> {
         self.cache
             .get_token(scopes, options, |s, o| self.get_access_token(s, o))

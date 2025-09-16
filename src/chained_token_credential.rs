@@ -7,7 +7,6 @@ use azure_core::{
     credentials::{AccessToken, TokenCredential, TokenRequestOptions},
     error::{Error, ErrorKind},
 };
-use azure_identity::TokenCredentialOptions;
 use std::sync::Arc;
 use tracing::debug;
 
@@ -15,16 +14,6 @@ use tracing::debug;
 /// [`ChainedTokenCredentialOptions`] contains optional parameters for [`ChainedTokenCredential`].
 pub struct ChainedTokenCredentialOptions {
     pub retry_sources: bool,
-    pub credential_options: TokenCredentialOptions,
-}
-
-impl From<TokenCredentialOptions> for ChainedTokenCredentialOptions {
-    fn from(credential_options: TokenCredentialOptions) -> Self {
-        Self {
-            retry_sources: Default::default(),
-            credential_options,
-        }
-    }
 }
 
 /// Provides a user-configurable [`TokenCredential`] authentication flow for applications that will be deployed to Azure.
@@ -59,7 +48,7 @@ impl ChainedTokenCredential {
     async fn get_token_impl(
         &self,
         scopes: &[&str],
-        options: Option<TokenRequestOptions>,
+        options: Option<TokenRequestOptions<'_>>,
     ) -> azure_core::Result<(Arc<dyn TokenCredential>, AccessToken)> {
         let mut errors = Vec::new();
         for source in &self.sources {
@@ -83,7 +72,7 @@ impl ChainedTokenCredential {
     async fn get_token(
         &self,
         scopes: &[&str],
-        options: Option<TokenRequestOptions>,
+        options: Option<TokenRequestOptions<'_>>,
     ) -> azure_core::Result<AccessToken> {
         if self.options.retry_sources {
             // if we are retrying sources, we don't need to cache the successful credential
@@ -110,7 +99,7 @@ impl TokenCredential for ChainedTokenCredential {
     async fn get_token(
         &self,
         scopes: &[&str],
-        options: Option<TokenRequestOptions>,
+        options: Option<TokenRequestOptions<'_>>,
     ) -> azure_core::Result<AccessToken> {
         self.cache
             .get_token(scopes, options, |s, o| self.get_token(s, o))

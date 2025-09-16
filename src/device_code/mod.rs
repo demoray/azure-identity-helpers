@@ -9,10 +9,10 @@
 mod device_code_responses;
 
 use azure_core::{
-    error::{Error, ErrorKind, http_response_from_body},
+    error::{Error, ErrorKind},
     http::{
-        HttpClient, Method, RawResponse, Request, Url, headers, headers::content_type,
-        new_http_client,
+        BufResponse, ClientOptions, Context, Method, Pipeline, Request, Url,
+        headers::{self, content_type},
     },
     json::from_json,
     sleep::sleep,
@@ -20,14 +20,13 @@ use azure_core::{
 pub use device_code_responses::*;
 use futures::stream::unfold;
 use serde::Deserialize;
-use std::{borrow::Cow, pin::Pin, sync::Arc};
+use std::{borrow::Cow, pin::Pin};
 use time::Duration;
 use url::form_urlencoded;
 
 /// Start the device authorization grant flow.
 /// The user has only 15 minutes to sign in (the usual value for `expires_in`).
 pub async fn start<'a, 'b, T>(
-    http_client: Arc<dyn HttpClient>,
     tenant_id: T,
     client_id: &str,
     scopes: &'b [&'b str],
@@ -43,13 +42,16 @@ where
         .append_pair("scope", &scopes.join(" "))
         .finish();
 
-    let rsp = post_form(http_client.clone(), url, encoded).await?;
+    let rsp = post_form(url, encoded).await?;
     let rsp_status = rsp.status();
-    let rsp_body = rsp.into_body().collect().await?;
     if !rsp_status.is_success() {
-        return Err(http_response_from_body(rsp_status, &rsp_body).into_error());
+        let rsp_body = rsp.into_body().collect_string().await?;
+        return Err(Error::message(
+            ErrorKind::Credential,
+            format!("the request failed: {rsp_body:?}"),
+        ));
     }
-    let device_code_response: DeviceCodePhaseOneResponse = from_json(&rsp_body)?;
+    let device_code_response: DeviceCodePhaseOneResponse = rsp.into_body().json().await?;
 
     // we need to capture some variables that will be useful in
     // the second phase (the client, the tenant_id and the client_id)
@@ -60,7 +62,6 @@ where
         expires_in: device_code_response.expires_in,
         interval: device_code_response.interval,
         message: device_code_response.message,
-        http_client: Some(http_client),
         tenant_id,
         client_id: client_id.to_string(),
     })
@@ -76,9 +77,6 @@ pub struct DeviceCodePhaseOneResponse<'a> {
     interval: i64,
     message: String,
     // The skipped fields below do not come from the Azure answer.
-    // They will be added manually after deserialization
-    #[serde(skip)]
-    http_client: Option<Arc<dyn HttpClient>>,
     #[serde(skip)]
     tenant_id: Cow<'a, str>,
     // We store the ClientId as string instead of the original type, because it
@@ -131,12 +129,7 @@ impl DeviceCodePhaseOneResponse<'_> {
                             .append_pair("device_code", &self.device_code)
                             .finish();
 
-                        let http_client = self
-                            .http_client
-                            .clone()
-                            .unwrap_or_else(|| new_http_client());
-
-                        match post_form(http_client.clone(), url, encoded).await {
+                        match post_form(url, encoded).await {
                             Ok(rsp) => {
                                 let rsp_status = rsp.status();
                                 let rsp_body = match rsp.into_body().collect().await {
@@ -178,11 +171,9 @@ impl DeviceCodePhaseOneResponse<'_> {
     }
 }
 
-async fn post_form(
-    http_client: Arc<dyn HttpClient>,
-    url: &str,
-    form_body: String,
-) -> azure_core::Result<RawResponse> {
+async fn post_form(url: &str, form_body: String) -> azure_core::Result<BufResponse> {
+    let pipeline = Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None);
+
     let url = Url::parse(url)?;
     let mut req = Request::new(url, Method::Post);
     req.insert_header(
@@ -190,7 +181,8 @@ async fn post_form(
         content_type::APPLICATION_X_WWW_FORM_URLENCODED,
     );
     req.set_body(form_body);
-    http_client.execute_request(&req).await
+
+    pipeline.send(&Context::new(), &mut req).await
 }
 
 #[cfg(test)]
@@ -201,6 +193,6 @@ mod tests {
 
     #[test]
     fn ensure_that_start_is_send() {
-        require_send(start(new_http_client(), "UNUSED", "UNUSED", &[]));
+        require_send(start("UNUSED", "UNUSED", &[]));
     }
 }
