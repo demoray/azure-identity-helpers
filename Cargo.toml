@@ -13,7 +13,7 @@ version = "0.0.9"
 [dependencies]
 async-lock = "3.4"
 async-trait = "0.1"
-azure_core = { version = "0.28", default-features = false }
+azure_core = { version = "0.29", default-features = false }
 azure_identity = { version = "0.28", default-features = false }
 futures = "0.3"
 oauth2 = { version = "5.0", default-features = false }
@@ -23,5 +23,5 @@ tracing = "0.1"
 url = "2.5"
 
 [dev-dependencies]
-azure_core = { version = "0.28", default-features = false }
+azure_core = { version = "0.29", default-features = false }
 tokio = "1.47"
