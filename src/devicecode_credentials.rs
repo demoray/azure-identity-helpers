@@ -62,7 +62,7 @@ impl DeviceCodeCredential {
         let mut stream = flow.stream();
         let auth = loop {
             let Some(response) = stream.next().await else {
-                return Err(Error::message(
+                return Err(Error::with_message(
                     ErrorKind::Credential,
                     "device code did not return a response",
                 ));

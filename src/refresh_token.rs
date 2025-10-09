@@ -5,7 +5,7 @@
 
 use azure_core::{
     credentials::Secret,
-    error::{Error, ErrorKind, ResultExt},
+    error::{Error, ErrorKind},
     http::{
         ClientOptions, Context, Method, Pipeline, Request, Url,
         headers::{self, content_type},
@@ -50,20 +50,18 @@ pub async fn exchange(
     );
     req.set_body(encoded);
 
-    let result = pipeline.send(&ctx, &mut req).await?;
+    let result = pipeline.send(&ctx, &mut req, None).await?;
     let status = result.status();
     if status.is_success() {
-        result
-            .into_body()
-            .json()
-            .await
-            .map_kind(ErrorKind::Credential)
+        result.into_body().json().map_err(|e| {
+            Error::with_error(ErrorKind::Credential, e, "parsing refresh token response")
+        })
     } else {
-        Err(Error::message(
+        Err(Error::with_message(
             ErrorKind::Credential,
             format!(
                 "the request failed: {:?}",
-                result.into_body().collect().await?
+                result.into_body().into_string()?
             ),
         ))
     }
