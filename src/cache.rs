@@ -3,7 +3,7 @@
 
 use async_lock::RwLock;
 use azure_core::credentials::{AccessToken, TokenRequestOptions};
-use std::{collections::HashMap, future::Future, time::Duration};
+use std::{collections::HashMap, time::Duration};
 use time::OffsetDateTime;
 use tracing::trace;
 
@@ -66,7 +66,7 @@ impl TokenCache {
 
 impl Default for TokenCache {
     fn default() -> Self {
-        TokenCache::new()
+        Self::new()
     }
 }
 
@@ -79,8 +79,6 @@ mod tests {
     use super::*;
     use async_lock::Mutex;
     use azure_core::credentials::Secret;
-    use std::time::Duration;
-    use time::OffsetDateTime;
 
     #[derive(Debug)]
     struct MockCredential {
