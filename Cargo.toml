@@ -1,5 +1,6 @@
 [package]
 authors = ["Brian Caswell <bcaswell@gmail.com>"]
+categories = ["api-bindings"]
 description = "Unofficial suite of helpers to expand on the use of azure-identity"
 documentation = "https://docs.rs/azure-identity-helpers"
 edition = "2024"
@@ -23,5 +24,32 @@ tracing = "0.1"
 url = "2.5"
 
 [dev-dependencies]
-azure_core = { version = "0.28", default-features = false }
 tokio = "1.47"
+
+[lints.clippy]
+cargo = { level = "deny", priority = -1 }
+complexity = { level = "deny", priority = -1 }
+correctness = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+perf = { level = "deny", priority = -1 }
+style = { level = "deny", priority = -1 }
+suspicious = { level = "deny", priority = -1 }
+
+missing_const_for_fn = "allow"
+missing_errors_doc = "allow"
+significant_drop_tightening = "allow"
+multiple_crate_versions = "allow"
+
+[lints.rust]
+ambiguous_negative_literals = "deny"
+non_snake_case = "deny"
+non_upper_case_globals = "deny"
+redundant_imports = "deny"
+redundant_lifetimes = "deny"
+trivial_numeric_casts = "deny"
+unfulfilled_lint_expectations = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+unused_extern_crates = "deny"
+unused_imports = "deny"
+unused_lifetimes = "deny"
