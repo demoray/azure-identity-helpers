@@ -16,15 +16,17 @@ mod unix_date_string {
 
     pub fn parse(s: &str) -> azure_core::Result<OffsetDateTime> {
         let as_i64 = s.parse().map_err(|_| {
-            Error::with_message(ErrorKind::DataConversion, || {
-                format!("unable to parse expiration_date '{s}")
-            })
+            Error::with_message(
+                ErrorKind::DataConversion,
+                format!("unable to parse expiration_date '{s}"),
+            )
         })?;
 
         OffsetDateTime::from_unix_timestamp(as_i64).map_err(|_| {
-            Error::with_message(ErrorKind::DataConversion, || {
-                format!("unable to parse expiration_date '{s}")
-            })
+            Error::with_message(
+                ErrorKind::DataConversion,
+                format!("unable to parse expiration_date '{s}"),
+            )
         })
     }
 
@@ -115,7 +117,7 @@ impl AzureauthCliCredential {
     ) -> azure_core::Result<AccessToken> {
         let cmd_name = find_azureauth()
             .await
-            .ok_or_else(|| Error::message(ErrorKind::Other, "azureauth CLI not installed"))?;
+            .ok_or_else(|| Error::with_message(ErrorKind::Other, "azureauth CLI not installed"))?;
         let use_windows_features = cmd_name == "azureauth.exe";
 
         // self.credential_options.
@@ -154,18 +156,20 @@ impl AzureauthCliCredential {
 
         let output = result.map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => {
-                Error::message(ErrorKind::Other, "azureauth CLI not installed")
+                Error::with_message(ErrorKind::Other, "azureauth CLI not installed")
             }
-            error_kind => Error::with_message(ErrorKind::Other, || {
-                format!("Unknown error of kind: {error_kind:?}")
-            }),
+            error_kind => Error::with_message(
+                ErrorKind::Other,
+                format!("Unknown error of kind: {error_kind:?}"),
+            ),
         })?;
 
         if !output.status.success() {
             let output = String::from_utf8_lossy(&output.stderr);
-            return Err(Error::with_message(ErrorKind::Credential, || {
-                format!("'azureauth' command failed: {output}")
-            }));
+            return Err(Error::with_message(
+                ErrorKind::Credential,
+                format!("'azureauth' command failed: {output}"),
+            ));
         }
 
         let token_response: CliTokenResponse = from_json(output.stdout)?;

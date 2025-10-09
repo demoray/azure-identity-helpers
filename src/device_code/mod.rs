@@ -11,7 +11,7 @@ mod device_code_responses;
 use azure_core::{
     error::{Error, ErrorKind},
     http::{
-        BufResponse, ClientOptions, Context, Method, Pipeline, Request, Url,
+        ClientOptions, Context, Method, Pipeline, RawResponse, Request, Url,
         headers::{self, content_type},
     },
     json::from_json,
@@ -45,13 +45,13 @@ where
     let rsp = post_form(url, encoded).await?;
     let rsp_status = rsp.status();
     if !rsp_status.is_success() {
-        let rsp_body = rsp.into_body().collect_string().await?;
-        return Err(Error::message(
+        let rsp_body = rsp.into_body().into_string()?;
+        return Err(Error::with_message(
             ErrorKind::Credential,
             format!("the request failed: {rsp_body:?}"),
         ));
     }
-    let device_code_response: DeviceCodePhaseOneResponse = rsp.into_body().json().await?;
+    let device_code_response: DeviceCodePhaseOneResponse = rsp.into_body().json()?;
 
     // we need to capture some variables that will be useful in
     // the second phase (the client, the tenant_id and the client_id)
@@ -132,7 +132,7 @@ impl DeviceCodePhaseOneResponse<'_> {
                         match post_form(url, encoded).await {
                             Ok(rsp) => {
                                 let rsp_status = rsp.status();
-                                let rsp_body = match rsp.into_body().collect().await {
+                                let rsp_body = match rsp.into_body().into_string() {
                                     Ok(b) => b,
                                     Err(e) => return Some((Err(e), NextState::Finish)),
                                 };
@@ -171,7 +171,7 @@ impl DeviceCodePhaseOneResponse<'_> {
     }
 }
 
-async fn post_form(url: &str, form_body: String) -> azure_core::Result<BufResponse> {
+async fn post_form(url: &str, form_body: String) -> azure_core::Result<RawResponse> {
     let pipeline = Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None);
 
     let url = Url::parse(url)?;
@@ -182,7 +182,7 @@ async fn post_form(url: &str, form_body: String) -> azure_core::Result<BufRespon
     );
     req.set_body(form_body);
 
-    pipeline.send(&Context::new(), &mut req).await
+    pipeline.send(&Context::new(), &mut req, None).await
 }
 
 #[cfg(test)]
