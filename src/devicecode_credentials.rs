@@ -55,7 +55,7 @@ impl DeviceCodeCredential {
             return Ok(token);
         }
 
-        let flow = start(self.tenant_id.to_string(), self.client_id.as_str(), scopes).await?;
+        let flow = start(self.tenant_id.clone(), self.client_id.as_str(), scopes).await?;
 
         eprintln!("{}", flow.message());
 
