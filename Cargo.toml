@@ -24,7 +24,7 @@ tracing = "0.1"
 url = "2.5"
 
 [dev-dependencies]
-tokio = "1.48"
+tokio = "1.49"
 
 [lints.clippy]
 cargo = { level = "deny", priority = -1 }
