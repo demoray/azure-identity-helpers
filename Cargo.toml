@@ -16,15 +16,14 @@ async-lock = { version = "3.4", default-features = false }
 async-trait = { version = "0.1", default-features = false }
 azure_core = { version = "0.31", default-features = false }
 azure_identity = { version = "0.31", default-features = false }
-futures = { version = "0.3", default-features = false }
-oauth2 = { version = "5.0", default-features = false }
-serde = { version = "1.0", default-features = false }
-time = { version = "0.3", default-features = false }
+futures = { version = "0.3", default-features = false, features = ["alloc"] }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+time = { version = "0.3", default-features = false, features = ["std"] }
 tracing = { version = "0.1", default-features = false }
 url = { version = "2.5", default-features = false }
 
 [dev-dependencies]
-tokio = { version = "1.49", default-features = false }
+tokio = { version = "1.49", default-features = false, features = ["macros", "rt"] }
 
 [lints.clippy]
 cargo = { level = "deny", priority = -1 }
