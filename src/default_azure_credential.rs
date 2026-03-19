@@ -390,4 +390,23 @@ mod tests {
 
         assert!(builder.included().is_empty());
     }
+
+    #[test]
+    fn build_with_all_sources_excluded_returns_credential_error() {
+        let builder = DefaultAzureCredentialBuilder::new()
+            .exclude_environment_credential()
+            .exclude_workload_identity_credential()
+            .exclude_managed_identity_credential();
+        #[cfg(not(target_arch = "wasm32"))]
+        let builder = builder
+            .exclude_azure_cli_credential()
+            .exclude_azure_developer_cli_credential();
+
+        let result = builder.build();
+
+        assert!(matches!(
+            result,
+            Err(ref error) if matches!(error.kind(), ErrorKind::Credential)
+        ));
+    }
 }

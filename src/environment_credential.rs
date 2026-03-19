@@ -2,9 +2,13 @@
 //! authentication from environment variables.
 //!
 //! This helper uses the following environment variables:
-//! - `AZURE_TENANT_ID`
-//! - `AZURE_CLIENT_ID`
-//! - `AZURE_CLIENT_SECRET`
+//! - `AZURE_TENANT_ID` identifies the tenant for both service principal and
+//!   workload identity configuration.
+//! - `AZURE_CLIENT_ID` identifies the application or workload identity client.
+//! - `AZURE_CLIENT_SECRET` configures service principal authentication for the
+//!   public [`EnvironmentCredential`] type.
+//! - `AZURE_FEDERATED_TOKEN_FILE` points to the federated token file used when
+//!   configuring workload identity within this module.
 
 use azure_core::{
     credentials::{AccessToken, Secret, TokenCredential, TokenRequestOptions},
