@@ -299,12 +299,17 @@ impl DefaultAzureCredentialBuilder {
 
 /// Recreates `DefaultAzureCredential` using the currently supported Rust credential types.
 ///
-/// The following credential sources are attempted in order:
+/// The following credential sources are attempted in order on non-`wasm32` targets:
 /// - environment-backed authentication (`ClientSecretCredential`)
 /// - `WorkloadIdentityCredential`
 /// - `ManagedIdentityCredential`
 /// - `AzureCliCredential`
 /// - `AzureDeveloperCliCredential`
+///
+/// On `wasm32`, the following credential sources are attempted in order:
+/// - environment-backed authentication (`ClientSecretCredential`)
+/// - `WorkloadIdentityCredential`
+/// - `ManagedIdentityCredential`
 ///
 /// `AzurePowerShellCredential` is not currently implemented in this crate.
 #[derive(Debug)]
