@@ -108,7 +108,7 @@ impl TokenCredential for ChainedTokenCredential {
     }
 }
 
-fn format_aggregate_error(errors: &[Error]) -> String {
+pub(crate) fn format_aggregate_error(errors: &[Error]) -> String {
     use std::error::Error;
     errors
         .iter()
