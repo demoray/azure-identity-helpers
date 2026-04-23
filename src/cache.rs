@@ -71,7 +71,7 @@ impl Default for TokenCache {
 }
 
 fn should_refresh(token: &AccessToken) -> bool {
-    token.expires_on <= OffsetDateTime::now_utc() + Duration::from_secs(300)
+    token.expires_on <= OffsetDateTime::now_utc() + Duration::from_mins(5)
 }
 
 #[cfg(test)]
@@ -122,7 +122,7 @@ mod tests {
         let resource1 = &[STORAGE_TOKEN_SCOPE];
         let resource2 = &[IOTHUB_TOKEN_SCOPE];
         let secret_string = "test-token";
-        let expires_on = OffsetDateTime::now_utc() + Duration::from_secs(3600);
+        let expires_on = OffsetDateTime::now_utc() + Duration::from_hours(1);
         let access_token = AccessToken::new(Secret::new(secret_string), expires_on);
 
         let mock_credential = MockCredential::new(access_token);
