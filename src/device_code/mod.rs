@@ -11,7 +11,7 @@ mod device_code_responses;
 use azure_core::{
     error::{Error, ErrorKind},
     http::{
-        ClientOptions, Context, Method, Pipeline, RawResponse, Request, Url,
+        ClientOptions, Context, Method, Pipeline, PipelineSendOptions, RawResponse, Request, Url,
         headers::{self, content_type},
     },
     json::from_json,
@@ -93,7 +93,13 @@ impl DeviceCodePhaseOneResponse<'_> {
     }
 
     /// Polls the token endpoint while the user signs in.
-    /// This will continue until either success or error is returned.
+    /// This will continue until either success or a terminal error is
+    /// returned. Per [RFC 8628 §3.5][rfc] the `authorization_pending` and
+    /// `slow_down` server errors keep the poll loop alive; `slow_down`
+    /// additionally requires the client to extend its polling interval by
+    /// 5 seconds.
+    ///
+    /// [rfc]: https://datatracker.ietf.org/doc/html/rfc8628#section-3.5
     #[must_use]
     pub fn stream(
         &self,
@@ -101,70 +107,80 @@ impl DeviceCodePhaseOneResponse<'_> {
     {
         #[derive(Debug, Clone, PartialEq, Eq)]
         enum NextState {
-            Continue,
+            /// Keep polling, sleeping `interval` seconds first.
+            Continue {
+                interval: i64,
+            },
             Finish,
         }
 
         Box::pin(unfold(
-            NextState::Continue,
+            NextState::Continue {
+                interval: self.interval,
+            },
             move |state: NextState| async move {
-                match state {
-                    NextState::Continue => {
-                        let url = &format!(
-                            "https://login.microsoftonline.com/{}/oauth2/v2.0/token",
-                            self.tenant_id,
-                        );
+                let NextState::Continue { interval } = state else {
+                    return None;
+                };
 
-                        // Throttle down as specified by Azure. This could be
-                        // smarter: we could calculate the elapsed time since the
-                        // last poll and wait only the delta.
-                        sleep(Duration::seconds(self.interval)).await;
+                let url = &format!(
+                    "https://login.microsoftonline.com/{}/oauth2/v2.0/token",
+                    self.tenant_id,
+                );
 
-                        let encoded = form_urlencoded::Serializer::new(String::new())
-                            .append_pair(
-                                "grant_type",
-                                "urn:ietf:params:oauth:grant-type:device_code",
-                            )
-                            .append_pair("client_id", self.client_id.as_str())
-                            .append_pair("device_code", &self.device_code)
-                            .finish();
+                // Throttle as specified by Azure. `slow_down` responses bump
+                // this by 5 seconds for the next iteration (see below).
+                sleep(Duration::seconds(interval)).await;
 
-                        match post_form(url, encoded).await {
-                            Ok(rsp) => {
-                                let rsp_status = rsp.status();
-                                let rsp_body = match rsp.into_body().into_string() {
-                                    Ok(b) => b,
-                                    Err(e) => return Some((Err(e), NextState::Finish)),
-                                };
-                                if rsp_status.is_success() {
-                                    match from_json::<_, DeviceCodeAuthorization>(&rsp_body) {
-                                        Ok(authorization) => {
-                                            Some((Ok(authorization), NextState::Finish))
-                                        }
-                                        Err(error) => Some((Err(error), NextState::Finish)),
-                                    }
-                                } else {
-                                    match from_json::<_, DeviceCodeErrorResponse>(&rsp_body) {
-                                        Ok(error_rsp) => {
-                                            let next_state =
-                                                if error_rsp.error == "authorization_pending" {
-                                                    NextState::Continue
-                                                } else {
-                                                    NextState::Finish
-                                                };
-                                            Some((
-                                                Err(Error::new(ErrorKind::Credential, error_rsp)),
-                                                next_state,
-                                            ))
-                                        }
-                                        Err(error) => Some((Err(error), NextState::Finish)),
-                                    }
-                                }
+                let encoded = form_urlencoded::Serializer::new(String::new())
+                    .append_pair("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
+                    .append_pair("client_id", self.client_id.as_str())
+                    .append_pair("device_code", &self.device_code)
+                    .finish();
+
+                match post_form(url, encoded).await {
+                    Ok(rsp) => {
+                        let rsp_status = rsp.status();
+                        let rsp_body = match rsp.into_body().into_string() {
+                            Ok(b) => b,
+                            Err(e) => return Some((Err(e), NextState::Finish)),
+                        };
+                        if rsp_status.is_success() {
+                            match from_json::<_, DeviceCodeAuthorization>(&rsp_body) {
+                                Ok(authorization) => Some((Ok(authorization), NextState::Finish)),
+                                Err(error) => Some((Err(error), NextState::Finish)),
                             }
-                            Err(error) => Some((Err(error), NextState::Finish)),
+                        } else {
+                            match from_json::<_, DeviceCodeErrorResponse>(&rsp_body) {
+                                Ok(error_rsp) => {
+                                    let next_state = match error_rsp.error.as_str() {
+                                        "authorization_pending" => NextState::Continue { interval },
+                                        // Per RFC 8628 §3.5 the client must
+                                        // extend its polling interval by 5s.
+                                        "slow_down" => NextState::Continue {
+                                            interval: interval.saturating_add(5),
+                                        },
+                                        _ => NextState::Finish,
+                                    };
+                                    Some((
+                                        Err(Error::new(ErrorKind::Credential, error_rsp)),
+                                        next_state,
+                                    ))
+                                }
+                                Err(_) => Some((
+                                    Err(Error::with_message(
+                                        ErrorKind::Credential,
+                                        format!(
+                                            "device code token endpoint returned \
+                                             status {rsp_status}: {rsp_body}"
+                                        ),
+                                    )),
+                                    NextState::Finish,
+                                )),
+                            }
                         }
                     }
-                    NextState::Finish => None,
+                    Err(error) => Some((Err(error), NextState::Finish)),
                 }
             },
         ))
@@ -182,7 +198,21 @@ async fn post_form(url: &str, form_body: String) -> azure_core::Result<RawRespon
     );
     req.set_body(form_body);
 
-    pipeline.send(&Context::new(), &mut req, None).await
+    // The device code token endpoint signals normal flow states (notably
+    // `authorization_pending` and `slow_down`) via 4xx responses with a
+    // structured body. Skip the pipeline's automatic success check so that
+    // we can inspect those bodies ourselves instead of having them turned
+    // into opaque transport errors.
+    pipeline
+        .send(
+            &Context::new(),
+            &mut req,
+            Some(PipelineSendOptions {
+                skip_checks: true,
+                ..PipelineSendOptions::default()
+            }),
+        )
+        .await
 }
 
 #[cfg(test)]

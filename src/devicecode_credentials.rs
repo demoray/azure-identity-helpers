@@ -7,6 +7,7 @@ use azure_core::{
 use futures::stream::StreamExt;
 use std::{collections::BTreeMap, str, sync::Arc, time::Duration};
 use time::OffsetDateTime;
+use tracing::debug;
 
 #[derive(Debug)]
 /// Enables authentication to an Azure Client using a Device Code workflow.
@@ -60,15 +61,27 @@ impl DeviceCodeCredential {
         eprintln!("{}", flow.message());
 
         let mut stream = flow.stream();
+        let mut last_error: Option<Error> = None;
         let auth = loop {
             let Some(response) = stream.next().await else {
-                return Err(Error::with_message(
-                    ErrorKind::Credential,
-                    "device code did not return a response",
-                ));
+                // The polling stream ended without yielding a successful
+                // authorization. Surface the most recent error from the
+                // server (e.g. `expired_token`, `access_denied`) instead
+                // of a generic message — that's almost always what the
+                // caller actually needs to see.
+                return Err(last_error.unwrap_or_else(|| {
+                    Error::with_message(
+                        ErrorKind::Credential,
+                        "device code did not return a response",
+                    )
+                }));
             };
-            if let Ok(auth) = response {
-                break auth;
+            match response {
+                Ok(auth) => break auth,
+                Err(err) => {
+                    debug!("device code poll returned error, will continue if recoverable: {err}");
+                    last_error = Some(err);
+                }
             }
         };
 
