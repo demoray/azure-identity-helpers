@@ -171,8 +171,7 @@ impl DeviceCodePhaseOneResponse<'_> {
                                     Err(Error::with_message(
                                         ErrorKind::Credential,
                                         format!(
-                                            "device code token endpoint returned \
-                                             status {rsp_status}: {rsp_body}"
+                                            "device code token endpoint returned status {rsp_status}: {rsp_body}"
                                         ),
                                     )),
                                     NextState::Finish,
