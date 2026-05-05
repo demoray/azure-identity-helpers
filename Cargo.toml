@@ -23,7 +23,9 @@ tracing = { version = "0.1", default-features = false }
 url = { version = "2.5", default-features = false }
 
 [dev-dependencies]
-tokio = { version = "1.52", default-features = false, features = ["macros", "rt"] }
+azure_core = { version = "0.35", default-features = false, features = ["reqwest_rustls", "tokio"] }
+tokio = { version = "1.52", default-features = false, features = ["macros", "rt-multi-thread"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
 
 [lints.clippy]
 cargo = { level = "deny", priority = -1 }

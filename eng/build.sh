@@ -17,7 +17,7 @@ cargo deny check all --hide-inclusion-graph
 cargo clippy ${BUILD_COMMON} --all-targets --all-features -- -D warnings -D clippy::pedantic -A clippy::missing_errors_doc -A clippy::module_name_repetitions
 cargo clippy ${BUILD_COMMON} --tests --all-targets --all-features -- -D warnings
 cargo fmt --check
-cargo build ${BUILD_COMMON}
-cargo test ${BUILD_COMMON}
+cargo build ${BUILD_COMMON} --all-targets
+cargo test ${BUILD_COMMON} --all-targets
 cargo readme > README.md
 git diff --exit-code README.md
