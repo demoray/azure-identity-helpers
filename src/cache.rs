@@ -3,12 +3,15 @@
 
 use async_lock::RwLock;
 use azure_core::credentials::{AccessToken, TokenRequestOptions};
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::{BTreeSet, HashMap},
+    time::Duration,
+};
 use time::OffsetDateTime;
 use tracing::trace;
 
 #[derive(Debug)]
-pub(crate) struct TokenCache(RwLock<HashMap<Vec<String>, AccessToken>>);
+pub(crate) struct TokenCache(RwLock<HashMap<BTreeSet<String>, AccessToken>>);
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) trait MaybeSend: Send {}
@@ -36,7 +39,7 @@ impl TokenCache {
         F: Future<Output = azure_core::Result<AccessToken>> + MaybeSend,
     {
         let token_cache = self.0.read().await;
-        let scopes_owned = scopes.iter().map(ToString::to_string).collect::<Vec<_>>();
+        let scopes_owned = scopes.iter().map(ToString::to_string).collect::<BTreeSet<_>>();
         if let Some(token) = token_cache.get(&scopes_owned)
             && !should_refresh(token)
         {
@@ -177,6 +180,41 @@ mod tests {
                 format!("{}-{}:{}", resource.join(" "), access_token, i)
             );
         }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_scope_order_is_irrelevant_to_cache_key() -> azure_core::Result<()> {
+        let secret_string = "test-token";
+        let expires_on = OffsetDateTime::now_utc() + Duration::from_hours(1);
+        let access_token = AccessToken::new(Secret::new(secret_string), expires_on);
+        let mock_credential = MockCredential::new(access_token);
+
+        let cache = TokenCache::new();
+
+        // First call populates the cache with the two scopes in one order.
+        let token1 = cache
+            .get_token(
+                &[STORAGE_TOKEN_SCOPE, IOTHUB_TOKEN_SCOPE],
+                None,
+                |s, o| mock_credential.get_token(s, o),
+            )
+            .await?;
+
+        // A request for the same scope set in a different order must hit the
+        // cache rather than triggering a second token acquisition: scopes are
+        // semantically unordered.
+        let token2 = cache
+            .get_token(
+                &[IOTHUB_TOKEN_SCOPE, STORAGE_TOKEN_SCOPE],
+                None,
+                |s, o| mock_credential.get_token(s, o),
+            )
+            .await?;
+
+        assert_eq!(token1.token.secret(), token2.token.secret());
+        assert_eq!(*mock_credential.get_token_call_count.lock().await, 1);
 
         Ok(())
     }
