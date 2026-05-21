@@ -43,7 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!(%tenant_id, %client_id, %scope, "starting device code flow");
 
-    let credential = DeviceCodeCredential::new(tenant_id, client_id)?;
+    let credential = DeviceCodeCredential::new(tenant_id, client_id, None)?;
     let token = credential.get_token(&[scope.as_str()], None).await?;
 
     info!(
