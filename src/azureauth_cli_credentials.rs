@@ -1,4 +1,5 @@
 use crate::cache::TokenCache;
+use async_lock::OnceCell;
 use azure_core::{
     credentials::{AccessToken, Secret, TokenCredential, TokenRequestOptions},
     error::{Error, ErrorKind},
@@ -70,6 +71,7 @@ pub struct AzureauthCliCredential {
     prompt_hint: Option<String>,
     cache: TokenCache,
     executor: Arc<dyn Executor>,
+    cmd_name: OnceCell<&'static OsStr>,
 }
 
 impl AzureauthCliCredential {
@@ -86,6 +88,7 @@ impl AzureauthCliCredential {
             prompt_hint: None,
             cache: TokenCache::new(),
             executor: new_executor(),
+            cmd_name: OnceCell::new(),
         }))
     }
 
@@ -110,14 +113,23 @@ impl AzureauthCliCredential {
         self
     }
 
+    async fn locate_azureauth(&self) -> azure_core::Result<&'static OsStr> {
+        self.cmd_name
+            .get_or_try_init(|| async {
+                find_azureauth(self.executor.as_ref()).await.ok_or_else(|| {
+                    Error::with_message(ErrorKind::Other, "azureauth CLI not installed")
+                })
+            })
+            .await
+            .copied()
+    }
+
     async fn get_access_token(
         &self,
         scopes: &[&str],
         _options: Option<TokenRequestOptions<'_>>,
     ) -> azure_core::Result<AccessToken> {
-        let cmd_name = find_azureauth()
-            .await
-            .ok_or_else(|| Error::with_message(ErrorKind::Other, "azureauth CLI not installed"))?;
+        let cmd_name = self.locate_azureauth().await?;
         let use_windows_features = cmd_name == "azureauth.exe";
 
         // self.credential_options.
@@ -196,14 +208,14 @@ impl TokenCredential for AzureauthCliCredential {
 /// This function checks for the presence of `azureauth.exe` and `azureauth` in the system's `PATH`.
 ///
 /// To support using azureauth within WSL, this checks for `azureauth.exe` first.
-pub async fn find_azureauth() -> Option<&'static OsStr> {
+pub(crate) async fn find_azureauth(executor: &dyn Executor) -> Option<&'static OsStr> {
     #[cfg(target_os = "windows")]
     let which = "where";
     #[cfg(not(target_os = "windows"))]
     let which = "which";
 
     for &exe in &[OsStr::new("azureauth.exe"), OsStr::new("azureauth")] {
-        if new_executor()
+        if executor
             .run(OsStr::new(which), &[exe])
             .await
             .is_ok_and(|x| x.status.success())
