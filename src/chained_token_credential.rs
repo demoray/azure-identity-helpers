@@ -10,7 +10,7 @@ use azure_core::{
 use std::sync::Arc;
 use tracing::debug;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 /// [`ChainedTokenCredentialOptions`] contains optional parameters for [`ChainedTokenCredential`].
 pub struct ChainedTokenCredentialOptions {
     pub retry_sources: bool,
