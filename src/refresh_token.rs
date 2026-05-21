@@ -130,8 +130,6 @@ mod deserialize {
     }
 }
 
-// cspell:ignore suberror
-
 #[cfg(test)]
 mod tests {
     use super::*;
