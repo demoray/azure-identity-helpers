@@ -16,7 +16,6 @@ use std::fmt;
 use url::form_urlencoded;
 
 /// Exchange a refresh token for a new access token and refresh token.
-#[allow(dead_code)]
 pub async fn exchange(
     tenant_id: &str,
     client_id: &str,
@@ -68,7 +67,6 @@ pub async fn exchange(
 }
 
 /// A refresh token
-#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct RefreshTokenResponse {
     token_type: String,
@@ -80,7 +78,6 @@ pub struct RefreshTokenResponse {
     refresh_token: Secret,
 }
 
-#[allow(dead_code)]
 impl RefreshTokenResponse {
     /// Returns the `token_type`. Always `Bearer` for Azure AD.
     #[must_use]
