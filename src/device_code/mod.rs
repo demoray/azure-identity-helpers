@@ -20,7 +20,7 @@ use azure_core::{
 pub use device_code_responses::*;
 use futures::stream::unfold;
 use serde::Deserialize;
-use std::{borrow::Cow, pin::Pin};
+use std::pin::Pin;
 use time::Duration;
 use url::form_urlencoded;
 
@@ -38,14 +38,14 @@ use url::form_urlencoded;
 /// (`Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None)`)
 /// is sufficient unless custom retry, transport, or policy configuration is
 /// required.
-pub async fn start<'a, 'b, T>(
+pub async fn start<T>(
     pipeline: &Pipeline,
     tenant_id: T,
     client_id: &str,
-    scopes: &'b [&'b str],
-) -> azure_core::Result<DeviceCodePhaseOneResponse<'a>>
+    scopes: &[&str],
+) -> azure_core::Result<DeviceCodePhaseOneResponse>
 where
-    T: Into<Cow<'a, str>>,
+    T: Into<String>,
 {
     let tenant_id = tenant_id.into();
     let url = &format!("https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/devicecode");
@@ -83,7 +83,7 @@ where
 
 /// Contains the required information to allow a user to sign in.
 #[derive(Debug, Clone, Deserialize)]
-pub struct DeviceCodePhaseOneResponse<'a> {
+pub struct DeviceCodePhaseOneResponse {
     device_code: String,
     user_code: String,
     verification_uri: String,
@@ -92,7 +92,7 @@ pub struct DeviceCodePhaseOneResponse<'a> {
     message: String,
     // The skipped fields below do not come from the Azure answer.
     #[serde(skip)]
-    tenant_id: Cow<'a, str>,
+    tenant_id: String,
     // We store the ClientId as string instead of the original type, because it
     // does not implement Default, and it's in another crate
     #[serde(skip)]
@@ -105,7 +105,7 @@ pub(crate) fn default_pipeline() -> Pipeline {
     Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None)
 }
 
-impl DeviceCodePhaseOneResponse<'_> {
+impl DeviceCodePhaseOneResponse {
     /// The message containing human readable instructions for the user.
     #[must_use]
     pub fn message(&self) -> &str {
