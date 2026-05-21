@@ -38,8 +38,11 @@ impl TokenCache {
         C: FnOnce(&'a [&'a str], Option<TokenRequestOptions<'b>>) -> F + MaybeSend,
         F: Future<Output = azure_core::Result<AccessToken>> + MaybeSend,
     {
+        let scopes_owned = scopes
+            .iter()
+            .map(ToString::to_string)
+            .collect::<BTreeSet<_>>();
         let token_cache = self.0.read().await;
-        let scopes_owned = scopes.iter().map(ToString::to_string).collect::<BTreeSet<_>>();
         if let Some(token) = token_cache.get(&scopes_owned)
             && !should_refresh(token)
         {
@@ -195,22 +198,18 @@ mod tests {
 
         // First call populates the cache with the two scopes in one order.
         let token1 = cache
-            .get_token(
-                &[STORAGE_TOKEN_SCOPE, IOTHUB_TOKEN_SCOPE],
-                None,
-                |s, o| mock_credential.get_token(s, o),
-            )
+            .get_token(&[STORAGE_TOKEN_SCOPE, IOTHUB_TOKEN_SCOPE], None, |s, o| {
+                mock_credential.get_token(s, o)
+            })
             .await?;
 
         // A request for the same scope set in a different order must hit the
         // cache rather than triggering a second token acquisition: scopes are
         // semantically unordered.
         let token2 = cache
-            .get_token(
-                &[IOTHUB_TOKEN_SCOPE, STORAGE_TOKEN_SCOPE],
-                None,
-                |s, o| mock_credential.get_token(s, o),
-            )
+            .get_token(&[IOTHUB_TOKEN_SCOPE, STORAGE_TOKEN_SCOPE], None, |s, o| {
+                mock_credential.get_token(s, o)
+            })
             .await?;
 
         assert_eq!(token1.token.secret(), token2.token.secret());
