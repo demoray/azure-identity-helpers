@@ -30,16 +30,16 @@ use url::form_urlencoded;
 ///
 /// `pipeline` is the HTTP pipeline used to issue both this request and every
 /// subsequent token-endpoint poll driven by
-/// [`DeviceCodePhaseOneResponse::stream`]. The pipeline is stored on the
-/// returned response and reused on every poll, so callers running the flow
-/// from a long-lived credential should construct a single [`Pipeline`] once
-/// and pass it in to keep TLS sessions and HTTP connections pooled across
-/// the polling loop. A pipeline built with default options
+/// [`DeviceCodePhaseOneResponse::stream`]. A clone of the pipeline is stored
+/// on the returned response and reused on every poll, so callers running the
+/// flow from a long-lived credential should construct a single [`Pipeline`]
+/// once and pass it in by reference to keep TLS sessions and HTTP connections
+/// pooled across the polling loop. A pipeline built with default options
 /// (`Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None)`)
 /// is sufficient unless custom retry, transport, or policy configuration is
 /// required.
 pub async fn start<'a, 'b, T>(
-    pipeline: Pipeline,
+    pipeline: &Pipeline,
     tenant_id: T,
     client_id: &str,
     scopes: &'b [&'b str],
@@ -55,7 +55,7 @@ where
         .append_pair("scope", &scopes.join(" "))
         .finish();
 
-    let rsp = post_form(&pipeline, url, encoded).await?;
+    let rsp = post_form(pipeline, url, encoded).await?;
     let rsp_status = rsp.status();
     if !rsp_status.is_success() {
         let rsp_body = rsp.into_body().into_string()?;
@@ -77,7 +77,7 @@ where
         message: device_code_response.message,
         tenant_id,
         client_id: client_id.to_string(),
-        pipeline,
+        pipeline: pipeline.clone(),
     })
 }
 
@@ -101,7 +101,7 @@ pub struct DeviceCodePhaseOneResponse<'a> {
     pipeline: Pipeline,
 }
 
-fn default_pipeline() -> Pipeline {
+pub(crate) fn default_pipeline() -> Pipeline {
     Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None)
 }
 
@@ -244,6 +244,7 @@ mod tests {
 
     #[test]
     fn ensure_that_start_is_send() {
-        require_send(start(default_pipeline(), "UNUSED", "UNUSED", &[]));
+        let pipeline = default_pipeline();
+        require_send(start(&pipeline, "UNUSED", "UNUSED", &[]));
     }
 }

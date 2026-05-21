@@ -1,9 +1,13 @@
-use crate::{cache::TokenCache, device_code::start, refresh_token::exchange};
+use crate::{
+    cache::TokenCache,
+    device_code::{default_pipeline, start},
+    refresh_token::exchange,
+};
 use async_lock::Mutex;
 use azure_core::{
     credentials::{AccessToken, Secret, TokenCredential, TokenRequestOptions},
     error::{Error, ErrorKind},
-    http::{ClientOptions, Pipeline},
+    http::Pipeline,
 };
 use futures::stream::StreamExt;
 use std::{collections::BTreeMap, fmt, pin::Pin, sync::Arc, time::Duration};
@@ -33,6 +37,11 @@ pub struct DeviceCodeCredentialOptions {
     /// Handler invoked with the device-code instruction message. When
     /// `None`, the message is written to stderr via `eprintln!`.
     pub message_handler: Option<DeviceCodeMessageHandler>,
+    /// HTTP pipeline used for the device-code and refresh-token requests.
+    /// When `None`, a pipeline built with default options is used. Supply a
+    /// custom pipeline to plug in retry, transport, proxy, or logging
+    /// policies, or to share a single pipeline across multiple credentials.
+    pub pipeline: Option<Pipeline>,
 }
 
 impl fmt::Debug for DeviceCodeCredentialOptions {
@@ -42,6 +51,7 @@ impl fmt::Debug for DeviceCodeCredentialOptions {
                 "message_handler",
                 &self.message_handler.as_ref().map(|_| "<callback>"),
             )
+            .field("pipeline", &self.pipeline)
             .finish()
     }
 }
@@ -90,7 +100,7 @@ impl DeviceCodeCredential {
             client_id: client_id.into(),
             cache: TokenCache::new(),
             refresh_tokens: Mutex::new(BTreeMap::new()),
-            pipeline: Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None),
+            pipeline: options.pipeline.unwrap_or_else(default_pipeline),
             message_handler: options.message_handler,
         }))
     }
@@ -141,7 +151,7 @@ impl DeviceCodeCredential {
         }
 
         let flow = start(
-            self.pipeline.clone(),
+            &self.pipeline,
             self.tenant_id.clone(),
             self.client_id.as_str(),
             scopes,
@@ -244,6 +254,7 @@ mod tests {
                         }
                     })
                 })),
+                ..Default::default()
             }),
         )?;
 
@@ -268,6 +279,23 @@ mod tests {
         // and the handler-less path stays wired up.
         let credential = DeviceCodeCredential::new("UNUSED", "UNUSED", None)?;
         credential.emit_message("default-path message").await;
+        Ok(())
+    }
+
+    #[test]
+    fn custom_pipeline_is_accepted_by_options() -> azure_core::Result<()> {
+        // The credential should accept a caller-supplied pipeline and not
+        // fall back to constructing its own. We can't observe the pipeline
+        // from outside without issuing an HTTP request, so this test just
+        // confirms the construction path compiles and runs.
+        let _credential = DeviceCodeCredential::new(
+            "UNUSED",
+            "UNUSED",
+            Some(DeviceCodeCredentialOptions {
+                pipeline: Some(default_pipeline()),
+                ..Default::default()
+            }),
+        )?;
         Ok(())
     }
 }
