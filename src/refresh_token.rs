@@ -12,7 +12,6 @@ use azure_core::{
     },
 };
 use serde::Deserialize;
-use std::fmt;
 use url::form_urlencoded;
 
 /// Exchange a refresh token for a new access token and refresh token.
@@ -128,34 +127,6 @@ mod deserialize {
     {
         let string: String = serde::Deserialize::deserialize(scope)?;
         Ok(string.split(' ').map(ToOwned::to_owned).collect())
-    }
-}
-
-// cspell:ignore suberror
-
-/// An error response body when there is an error requesting a token
-#[derive(Debug, Clone, Deserialize)]
-#[allow(unused)]
-pub struct RefreshTokenError {
-    error: String,
-    error_description: String,
-    error_codes: Vec<i64>,
-    timestamp: Option<String>,
-    trace_id: Option<String>,
-    correlation_id: Option<String>,
-    suberror: Option<String>,
-    claims: Option<String>,
-}
-
-impl std::error::Error for RefreshTokenError {}
-
-impl fmt::Display for RefreshTokenError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
-        writeln!(f, "error: {}", self.error)?;
-        if let Some(suberror) = &self.suberror {
-            writeln!(f, "suberror: {suberror}")?;
-        }
-        writeln!(f, "description: {}", self.error_description)
     }
 }
 
