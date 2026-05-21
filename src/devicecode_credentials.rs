@@ -10,7 +10,13 @@ use azure_core::{
     http::Pipeline,
 };
 use futures::stream::StreamExt;
-use std::{collections::BTreeMap, fmt, pin::Pin, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    pin::Pin,
+    sync::Arc,
+    time::Duration,
+};
 use time::OffsetDateTime;
 use tracing::debug;
 
@@ -62,7 +68,7 @@ pub struct DeviceCodeCredential {
     tenant_id: String,
     client_id: String,
     cache: TokenCache,
-    refresh_tokens: Mutex<BTreeMap<Vec<String>, Secret>>,
+    refresh_tokens: Mutex<BTreeMap<BTreeSet<String>, Secret>>,
     pipeline: Pipeline,
     message_handler: Option<DeviceCodeMessageHandler>,
 }
@@ -119,7 +125,10 @@ impl DeviceCodeCredential {
         scopes: &[&str],
         _options: Option<TokenRequestOptions<'_>>,
     ) -> azure_core::Result<AccessToken> {
-        let scopes_owned = scopes.iter().map(ToString::to_string).collect::<Vec<_>>();
+        let scopes_owned = scopes
+            .iter()
+            .map(ToString::to_string)
+            .collect::<BTreeSet<_>>();
 
         // Take any cached refresh token for this scope set under a brief lock
         // and drop the guard immediately. Holding it across the HTTP call (or,
@@ -293,6 +302,32 @@ mod tests {
                 ..Default::default()
             }),
         )?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn refresh_token_scope_order_is_irrelevant() -> azure_core::Result<()> {
+        // A refresh token stored under one ordering of the scopes must be
+        // found by a lookup using the same scopes in a different order; the
+        // AAD token endpoint treats scopes as unordered, and the cache
+        // should too.
+        let credential = DeviceCodeCredential::new("UNUSED", "UNUSED", None)?;
+        let key_first: BTreeSet<String> =
+            ["alpha", "beta"].iter().map(|s| (*s).to_string()).collect();
+        let key_permuted: BTreeSet<String> =
+            ["beta", "alpha"].iter().map(|s| (*s).to_string()).collect();
+        assert_eq!(key_first, key_permuted, "BTreeSet keys must compare equal");
+
+        credential
+            .refresh_tokens
+            .lock()
+            .await
+            .insert(key_first, Secret::new("token"));
+        let found = credential.refresh_tokens.lock().await.remove(&key_permuted);
+        assert!(
+            found.is_some(),
+            "permuted scope set should hit the same refresh-token entry",
+        );
         Ok(())
     }
 
