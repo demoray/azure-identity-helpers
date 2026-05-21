@@ -302,4 +302,43 @@ mod tests {
         assert_eq!(second.calls(), 2);
         Ok(())
     }
+
+    #[test]
+    fn format_aggregate_error_walks_source_chain() {
+        // Wrap an inner cause as the source of an outer azure_core::Error.
+        // format_aggregate_error should follow Error::source() and surface
+        // the inner message, not just the outer one.
+        let inner = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "inner-cause");
+        let outer = Error::with_error(ErrorKind::Credential, inner, "outer-context");
+
+        let formatted = format_aggregate_error(&[outer]);
+
+        assert!(
+            formatted.contains("outer-context"),
+            "missing outer message in: {formatted}",
+        );
+        assert!(
+            formatted.contains("inner-cause"),
+            "source chain was not walked; output was: {formatted}",
+        );
+        assert!(
+            formatted.contains(" - "),
+            "missing chain separator in: {formatted}",
+        );
+    }
+
+    #[test]
+    fn format_aggregate_error_joins_multiple_errors_with_newlines() {
+        let first = Error::with_message(ErrorKind::Credential, "first-failure");
+        let second = Error::with_message(ErrorKind::Credential, "second-failure");
+
+        let formatted = format_aggregate_error(&[first, second]);
+
+        assert!(formatted.contains("first-failure"), "missing: {formatted}");
+        assert!(formatted.contains("second-failure"), "missing: {formatted}");
+        assert!(
+            formatted.contains('\n'),
+            "missing per-error newline in: {formatted}",
+        );
+    }
 }
