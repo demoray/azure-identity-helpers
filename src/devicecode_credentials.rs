@@ -119,8 +119,10 @@ fn convert_expires_in(seconds: u64) -> OffsetDateTime {
 mod tests {
     use super::*;
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn require_send<T: Send>(_t: T) {}
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn ensure_that_get_token_is_send() -> azure_core::Result<()> {
         let credential = DeviceCodeCredential::new("UNUSED", "UNUSED")?;
