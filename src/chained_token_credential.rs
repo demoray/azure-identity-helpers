@@ -127,7 +127,13 @@ pub(crate) fn format_aggregate_error(errors: &[Error]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use azure_core::credentials::Secret;
     use azure_identity::AzureCliCredential;
+    use std::{
+        sync::atomic::{AtomicUsize, Ordering},
+        time::Duration,
+    };
+    use time::OffsetDateTime;
 
     #[test]
     fn test_adding_azure_cli() -> azure_core::Result<()> {
@@ -138,6 +144,152 @@ mod tests {
             credential.add_source(cli);
         }
 
+        Ok(())
+    }
+
+    #[derive(Debug)]
+    struct MockCredential {
+        name: &'static str,
+        succeed: bool,
+        calls: AtomicUsize,
+    }
+
+    impl MockCredential {
+        fn ok(name: &'static str) -> Arc<Self> {
+            Arc::new(Self {
+                name,
+                succeed: true,
+                calls: AtomicUsize::new(0),
+            })
+        }
+
+        fn err(name: &'static str) -> Arc<Self> {
+            Arc::new(Self {
+                name,
+                succeed: false,
+                calls: AtomicUsize::new(0),
+            })
+        }
+
+        fn calls(&self) -> usize {
+            self.calls.load(Ordering::SeqCst)
+        }
+    }
+
+    #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+    #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+    impl TokenCredential for MockCredential {
+        async fn get_token(
+            &self,
+            _scopes: &[&str],
+            _options: Option<TokenRequestOptions<'_>>,
+        ) -> azure_core::Result<AccessToken> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            if self.succeed {
+                Ok(AccessToken {
+                    token: Secret::new(self.name.to_string()),
+                    expires_on: OffsetDateTime::now_utc() + Duration::from_hours(1),
+                })
+            } else {
+                Err(Error::with_message(
+                    ErrorKind::Credential,
+                    format!("mock {} failed", self.name),
+                ))
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn first_source_success_short_circuits_chain() -> azure_core::Result<()> {
+        let first = MockCredential::ok("first");
+        let second = MockCredential::ok("second");
+        let mut chain = ChainedTokenCredential::new(None);
+        chain.add_source(first.clone());
+        chain.add_source(second.clone());
+
+        let token = chain.get_token(&["scope-a"], None).await?;
+        assert_eq!(token.token.secret(), "first");
+        assert_eq!(first.calls(), 1);
+        assert_eq!(second.calls(), 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn falls_back_to_later_source_on_failure() -> azure_core::Result<()> {
+        let first = MockCredential::err("first");
+        let second = MockCredential::ok("second");
+        let mut chain = ChainedTokenCredential::new(None);
+        chain.add_source(first.clone());
+        chain.add_source(second.clone());
+
+        let token = chain.get_token(&["scope-a"], None).await?;
+        assert_eq!(token.token.secret(), "second");
+        assert_eq!(first.calls(), 1);
+        assert_eq!(second.calls(), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn all_sources_failing_aggregates_their_errors() {
+        let first = MockCredential::err("first");
+        let second = MockCredential::err("second");
+        let mut chain = ChainedTokenCredential::new(None);
+        chain.add_source(first);
+        chain.add_source(second);
+
+        let result = chain.get_token(&["scope-a"], None).await;
+        assert!(matches!(
+            &result,
+            Err(error) if matches!(error.kind(), ErrorKind::Credential)
+        ));
+        if let Err(error) = result {
+            let message = error.to_string();
+            assert!(
+                message.contains("mock first failed"),
+                "missing first source error in: {message}",
+            );
+            assert!(
+                message.contains("mock second failed"),
+                "missing second source error in: {message}",
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn successful_credential_is_sticky_across_scopes() -> azure_core::Result<()> {
+        let first = MockCredential::err("first");
+        let second = MockCredential::ok("second");
+        let mut chain = ChainedTokenCredential::new(None);
+        chain.add_source(first.clone());
+        chain.add_source(second.clone());
+
+        // First scope: chain walks both sources.
+        let _ = chain.get_token(&["scope-a"], None).await?;
+        assert_eq!(first.calls(), 1);
+        assert_eq!(second.calls(), 1);
+
+        // Different scope: cache miss, but `successful_credential` should
+        // route straight to `second` without re-trying `first`.
+        let _ = chain.get_token(&["scope-b"], None).await?;
+        assert_eq!(first.calls(), 1, "failing source should not be retried");
+        assert_eq!(second.calls(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn retry_sources_re_walks_chain_on_every_request() -> azure_core::Result<()> {
+        let first = MockCredential::err("first");
+        let second = MockCredential::ok("second");
+        let mut chain = ChainedTokenCredential::new(Some(ChainedTokenCredentialOptions {
+            retry_sources: true,
+        }));
+        chain.add_source(first.clone());
+        chain.add_source(second.clone());
+
+        let _ = chain.get_token(&["scope-a"], None).await?;
+        let _ = chain.get_token(&["scope-b"], None).await?;
+        assert_eq!(first.calls(), 2, "failing source should be retried");
+        assert_eq!(second.calls(), 2);
         Ok(())
     }
 }
