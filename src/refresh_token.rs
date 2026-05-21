@@ -7,7 +7,7 @@ use azure_core::{
     credentials::Secret,
     error::{Error, ErrorKind},
     http::{
-        ClientOptions, Context, Method, Pipeline, Request, Url,
+        Context, Method, Pipeline, Request, Url,
         headers::{self, content_type},
     },
 };
@@ -16,13 +16,22 @@ use std::fmt;
 use url::form_urlencoded;
 
 /// Exchange a refresh token for a new access token and refresh token.
+///
+/// `pipeline` is the HTTP pipeline used to issue the token request. Callers
+/// driving repeated refreshes (for example, from inside a long-lived
+/// credential instance) should construct a single [`Pipeline`] once and reuse
+/// it across calls so that TLS sessions and HTTP connections are pooled
+/// between requests. A pipeline built with default options
+/// (`Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None)`)
+/// is sufficient unless the caller needs custom retry, transport, or policy
+/// configuration.
 pub async fn exchange(
+    pipeline: &Pipeline,
     tenant_id: &str,
     client_id: &str,
     client_secret: Option<&str>,
     refresh_token: &Secret,
 ) -> azure_core::Result<RefreshTokenResponse> {
-    let pipeline = Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None);
     let ctx = Context::new();
 
     let encoded = {
@@ -153,11 +162,19 @@ impl fmt::Display for RefreshTokenError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use azure_core::http::ClientOptions;
 
     fn require_send<T: Send>(_t: T) {}
 
     #[test]
     fn ensure_that_exchange_is_send() {
-        require_send(exchange("UNUSED", "UNUSED", None, &Secret::new("UNUSED")));
+        let pipeline = Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None);
+        require_send(exchange(
+            &pipeline,
+            "UNUSED",
+            "UNUSED",
+            None,
+            &Secret::new("UNUSED"),
+        ));
     }
 }

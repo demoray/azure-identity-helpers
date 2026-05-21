@@ -25,8 +25,21 @@ use time::Duration;
 use url::form_urlencoded;
 
 /// Start the device authorization grant flow.
+///
 /// The user has only 15 minutes to sign in (the usual value for `expires_in`).
+///
+/// `pipeline` is the HTTP pipeline used to issue both this request and every
+/// subsequent token-endpoint poll driven by
+/// [`DeviceCodePhaseOneResponse::stream`]. The pipeline is stored on the
+/// returned response and reused on every poll, so callers running the flow
+/// from a long-lived credential should construct a single [`Pipeline`] once
+/// and pass it in to keep TLS sessions and HTTP connections pooled across
+/// the polling loop. A pipeline built with default options
+/// (`Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None)`)
+/// is sufficient unless custom retry, transport, or policy configuration is
+/// required.
 pub async fn start<'a, 'b, T>(
+    pipeline: Pipeline,
     tenant_id: T,
     client_id: &str,
     scopes: &'b [&'b str],
@@ -42,7 +55,7 @@ where
         .append_pair("scope", &scopes.join(" "))
         .finish();
 
-    let rsp = post_form(url, encoded).await?;
+    let rsp = post_form(&pipeline, url, encoded).await?;
     let rsp_status = rsp.status();
     if !rsp_status.is_success() {
         let rsp_body = rsp.into_body().into_string()?;
@@ -64,6 +77,7 @@ where
         message: device_code_response.message,
         tenant_id,
         client_id: client_id.to_string(),
+        pipeline,
     })
 }
 
@@ -83,6 +97,12 @@ pub struct DeviceCodePhaseOneResponse<'a> {
     // does not implement Default, and it's in another crate
     #[serde(skip)]
     client_id: String,
+    #[serde(skip, default = "default_pipeline")]
+    pipeline: Pipeline,
+}
+
+fn default_pipeline() -> Pipeline {
+    Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None)
 }
 
 impl DeviceCodePhaseOneResponse<'_> {
@@ -138,7 +158,7 @@ impl DeviceCodePhaseOneResponse<'_> {
                     .append_pair("device_code", &self.device_code)
                     .finish();
 
-                match post_form(url, encoded).await {
+                match post_form(&self.pipeline, url, encoded).await {
                     Ok(rsp) => {
                         let rsp_status = rsp.status();
                         let rsp_body = match rsp.into_body().into_string() {
@@ -186,9 +206,11 @@ impl DeviceCodePhaseOneResponse<'_> {
     }
 }
 
-async fn post_form(url: &str, form_body: String) -> azure_core::Result<RawResponse> {
-    let pipeline = Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None);
-
+async fn post_form(
+    pipeline: &Pipeline,
+    url: &str,
+    form_body: String,
+) -> azure_core::Result<RawResponse> {
     let url = Url::parse(url)?;
     let mut req = Request::new(url, Method::Post);
     req.insert_header(
@@ -222,6 +244,6 @@ mod tests {
 
     #[test]
     fn ensure_that_start_is_send() {
-        require_send(start("UNUSED", "UNUSED", &[]));
+        require_send(start(default_pipeline(), "UNUSED", "UNUSED", &[]));
     }
 }
