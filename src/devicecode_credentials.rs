@@ -33,6 +33,7 @@ pub type DeviceCodeMessageHandler =
 
 /// Optional configuration for [`DeviceCodeCredential`].
 #[derive(Default)]
+#[non_exhaustive]
 pub struct DeviceCodeCredentialOptions {
     /// Handler invoked with the device-code instruction message. When
     /// `None`, the message is written to stderr via `eprintln!`.
@@ -284,10 +285,6 @@ mod tests {
 
     #[test]
     fn custom_pipeline_is_accepted_by_options() -> azure_core::Result<()> {
-        // The credential should accept a caller-supplied pipeline and not
-        // fall back to constructing its own. We can't observe the pipeline
-        // from outside without issuing an HTTP request, so this test just
-        // confirms the construction path compiles and runs.
         let _credential = DeviceCodeCredential::new(
             "UNUSED",
             "UNUSED",
@@ -296,6 +293,68 @@ mod tests {
                 ..Default::default()
             }),
         )?;
+        Ok(())
+    }
+
+    #[derive(Debug)]
+    struct RecordingPolicy {
+        hits: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    #[async_trait::async_trait]
+    impl azure_core::http::policies::Policy for RecordingPolicy {
+        async fn send(
+            &self,
+            _ctx: &azure_core::http::Context,
+            _request: &mut azure_core::http::Request,
+            _next: &[Arc<dyn azure_core::http::policies::Policy>],
+        ) -> azure_core::http::policies::PolicyResult {
+            self.hits
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            // Short-circuit the pipeline so no real HTTP traffic leaves the
+            // process. The credential will surface this error to its caller;
+            // we only care that the policy was reached.
+            Err(Error::with_message(
+                ErrorKind::Other,
+                "recording-policy short circuit",
+            ))
+        }
+    }
+
+    #[tokio::test]
+    async fn custom_pipeline_is_actually_used_for_requests() -> azure_core::Result<()> {
+        // Build a pipeline whose first per-call policy records every send
+        // and short-circuits. If the credential were ignoring our pipeline
+        // and using its own, the recorder would never fire.
+        let hits = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let recorder: Arc<dyn azure_core::http::policies::Policy> = Arc::new(RecordingPolicy {
+            hits: hits.clone(),
+        });
+        let pipeline = azure_core::http::Pipeline::new(
+            None,
+            None,
+            azure_core::http::ClientOptions::default(),
+            vec![recorder],
+            vec![],
+            None,
+        );
+
+        let credential = DeviceCodeCredential::new(
+            "UNUSED",
+            "UNUSED",
+            Some(DeviceCodeCredentialOptions {
+                pipeline: Some(pipeline),
+                ..Default::default()
+            }),
+        )?;
+
+        // Trigger a request path. The recorder will short-circuit so this
+        // call necessarily fails; the test only inspects the hit counter.
+        let _ = credential.get_token(&["scope"], None).await;
+        assert!(
+            hits.load(std::sync::atomic::Ordering::SeqCst) >= 1,
+            "the caller-supplied pipeline was never invoked",
+        );
         Ok(())
     }
 }
