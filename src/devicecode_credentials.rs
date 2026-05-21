@@ -3,6 +3,7 @@ use async_lock::Mutex;
 use azure_core::{
     credentials::{AccessToken, Secret, TokenCredential, TokenRequestOptions},
     error::{Error, ErrorKind},
+    http::{ClientOptions, Pipeline},
 };
 use futures::stream::StreamExt;
 use std::{collections::BTreeMap, str, sync::Arc, time::Duration};
@@ -16,10 +17,11 @@ pub struct DeviceCodeCredential {
     client_id: String,
     cache: TokenCache,
     refresh_tokens: Mutex<BTreeMap<Vec<String>, Secret>>,
+    pipeline: Pipeline,
 }
 
 impl DeviceCodeCredential {
-    /// Create a new `DeviceCodeCredential` with the specified tenant ID, client ID, and options.
+    /// Create a new `DeviceCodeCredential` with the specified tenant ID and client ID.
     pub fn new<T, C>(tenant_id: T, client_id: C) -> azure_core::Result<Arc<Self>>
     where
         T: Into<String>,
@@ -30,6 +32,7 @@ impl DeviceCodeCredential {
             client_id: client_id.into(),
             cache: TokenCache::new(),
             refresh_tokens: Mutex::new(BTreeMap::new()),
+            pipeline: Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None),
         }))
     }
 
@@ -42,6 +45,7 @@ impl DeviceCodeCredential {
         let mut refresh_tokens = self.refresh_tokens.lock().await;
         if let Some(refresh_token) = refresh_tokens.remove(&scopes_owned) {
             let response = exchange(
+                &self.pipeline,
                 self.tenant_id.as_str(),
                 &self.client_id,
                 None,
@@ -56,7 +60,13 @@ impl DeviceCodeCredential {
             return Ok(token);
         }
 
-        let flow = start(self.tenant_id.clone(), self.client_id.as_str(), scopes).await?;
+        let flow = start(
+            self.pipeline.clone(),
+            self.tenant_id.clone(),
+            self.client_id.as_str(),
+            scopes,
+        )
+        .await?;
 
         eprintln!("{}", flow.message());
 
