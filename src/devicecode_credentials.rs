@@ -312,18 +312,18 @@ mod tests {
         // AAD token endpoint treats scopes as unordered, and the cache
         // should too.
         let credential = DeviceCodeCredential::new("UNUSED", "UNUSED", None)?;
-        let key_ab: BTreeSet<String> =
-            ["a", "b"].iter().map(|s| (*s).to_string()).collect();
-        let key_ba: BTreeSet<String> =
-            ["b", "a"].iter().map(|s| (*s).to_string()).collect();
-        assert_eq!(key_ab, key_ba, "BTreeSet keys must compare equal");
+        let key_first: BTreeSet<String> =
+            ["alpha", "beta"].iter().map(|s| (*s).to_string()).collect();
+        let key_permuted: BTreeSet<String> =
+            ["beta", "alpha"].iter().map(|s| (*s).to_string()).collect();
+        assert_eq!(key_first, key_permuted, "BTreeSet keys must compare equal");
 
         credential
             .refresh_tokens
             .lock()
             .await
-            .insert(key_ab, Secret::new("token"));
-        let found = credential.refresh_tokens.lock().await.remove(&key_ba);
+            .insert(key_first, Secret::new("token"));
+        let found = credential.refresh_tokens.lock().await.remove(&key_permuted);
         assert!(
             found.is_some(),
             "permuted scope set should hit the same refresh-token entry",
