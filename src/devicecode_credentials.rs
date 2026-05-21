@@ -114,3 +114,17 @@ impl TokenCredential for DeviceCodeCredential {
 fn convert_expires_in(seconds: u64) -> OffsetDateTime {
     OffsetDateTime::now_utc() + Duration::new(seconds, 0)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn require_send<T: Send>(_t: T) {}
+
+    #[test]
+    fn ensure_that_get_token_is_send() -> azure_core::Result<()> {
+        let credential = DeviceCodeCredential::new("UNUSED", "UNUSED")?;
+        require_send(async move { credential.get_token(&[], None).await });
+        Ok(())
+    }
+}
