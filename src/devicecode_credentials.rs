@@ -162,7 +162,7 @@ impl DeviceCodeCredential {
 
         let flow = start(
             &self.pipeline,
-            self.tenant_id.clone(),
+            self.tenant_id.as_str(),
             self.client_id.as_str(),
             scopes,
         )
@@ -170,7 +170,11 @@ impl DeviceCodeCredential {
 
         self.emit_message(flow.message()).await;
 
-        let mut stream = flow.stream();
+        let mut stream = flow.stream(
+            &self.pipeline,
+            self.tenant_id.as_str(),
+            self.client_id.as_str(),
+        );
         let mut last_error: Option<Error> = None;
         let auth = loop {
             let Some(response) = stream.next().await else {
