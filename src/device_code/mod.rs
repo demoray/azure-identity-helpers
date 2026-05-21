@@ -28,26 +28,22 @@ use url::form_urlencoded;
 ///
 /// The user has only 15 minutes to sign in (the usual value for `expires_in`).
 ///
-/// `pipeline` is the HTTP pipeline used to issue both this request and every
-/// subsequent token-endpoint poll driven by
-/// [`DeviceCodePhaseOneResponse::stream`]. A clone of the pipeline is stored
-/// on the returned response and reused on every poll, so callers running the
-/// flow from a long-lived credential should construct a single [`Pipeline`]
-/// once and pass it in by reference to keep TLS sessions and HTTP connections
-/// pooled across the polling loop. A pipeline built with default options
+/// `pipeline` is the HTTP pipeline used to issue this request. The same
+/// pipeline (and the same `tenant_id` / `client_id`) must be passed to
+/// [`DeviceCodePhaseOneResponse::stream`] when polling the token endpoint
+/// afterwards. Callers running the flow from a long-lived credential should
+/// construct a single [`Pipeline`] once and reuse it to keep TLS sessions
+/// and HTTP connections pooled across the polling loop. A pipeline built
+/// with default options
 /// (`Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None)`)
 /// is sufficient unless custom retry, transport, or policy configuration is
 /// required.
-pub async fn start<T>(
+pub async fn start(
     pipeline: &Pipeline,
-    tenant_id: T,
+    tenant_id: &str,
     client_id: &str,
     scopes: &[&str],
-) -> azure_core::Result<DeviceCodePhaseOneResponse>
-where
-    T: Into<String>,
-{
-    let tenant_id = tenant_id.into();
+) -> azure_core::Result<DeviceCodePhaseOneResponse> {
     let url = &format!("https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/devicecode");
 
     let encoded = form_urlencoded::Serializer::new(String::new())
@@ -64,41 +60,22 @@ where
             format!("the request failed: {rsp_body:?}"),
         ));
     }
-    let device_code_response: DeviceCodePhaseOneResponse = rsp.into_body().json()?;
-
-    // we need to capture some variables that will be useful in
-    // the second phase (the client, the tenant_id and the client_id)
-    Ok(DeviceCodePhaseOneResponse {
-        device_code: device_code_response.device_code,
-        user_code: device_code_response.user_code,
-        verification_uri: device_code_response.verification_uri,
-        expires_in: device_code_response.expires_in,
-        interval: device_code_response.interval,
-        message: device_code_response.message,
-        tenant_id,
-        client_id: client_id.to_string(),
-        pipeline: pipeline.clone(),
-    })
+    rsp.into_body().json()
 }
 
 /// Contains the required information to allow a user to sign in.
+///
+/// The struct mirrors only the JSON fields the credential needs downstream
+/// (the device code, polling interval, and pre-formatted user message);
+/// other fields returned by the AAD device-code endpoint are ignored. The
+/// HTTP pipeline, tenant id, and client id are passed back in to
+/// [`Self::stream`] when polling rather than stored on the struct, which
+/// keeps this type's serde layout faithful to the wire format.
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeviceCodePhaseOneResponse {
     device_code: String,
-    user_code: String,
-    verification_uri: String,
-    expires_in: u64,
     interval: i64,
     message: String,
-    // The skipped fields below do not come from the Azure answer.
-    #[serde(skip)]
-    tenant_id: String,
-    // We store the ClientId as string instead of the original type, because it
-    // does not implement Default, and it's in another crate
-    #[serde(skip)]
-    client_id: String,
-    #[serde(skip, default = "default_pipeline")]
-    pipeline: Pipeline,
 }
 
 pub(crate) fn default_pipeline() -> Pipeline {
@@ -113,6 +90,10 @@ impl DeviceCodePhaseOneResponse {
     }
 
     /// Polls the token endpoint while the user signs in.
+    ///
+    /// `pipeline`, `tenant_id`, and `client_id` must match what was passed
+    /// to [`start`].
+    ///
     /// This will continue until either success or a terminal error is
     /// returned. Per [RFC 8628 §3.5][rfc] the `authorization_pending` and
     /// `slow_down` server errors keep the poll loop alive; `slow_down`
@@ -121,9 +102,12 @@ impl DeviceCodePhaseOneResponse {
     ///
     /// [rfc]: https://datatracker.ietf.org/doc/html/rfc8628#section-3.5
     #[must_use]
-    pub fn stream(
-        &self,
-    ) -> Pin<Box<impl futures::Stream<Item = azure_core::Result<DeviceCodeAuthorization>> + '_>>
+    pub fn stream<'a>(
+        &'a self,
+        pipeline: &'a Pipeline,
+        tenant_id: &'a str,
+        client_id: &'a str,
+    ) -> Pin<Box<impl futures::Stream<Item = azure_core::Result<DeviceCodeAuthorization>> + 'a>>
     {
         #[derive(Debug, Clone, PartialEq, Eq)]
         enum NextState {
@@ -143,10 +127,8 @@ impl DeviceCodePhaseOneResponse {
                     return None;
                 };
 
-                let url = &format!(
-                    "https://login.microsoftonline.com/{}/oauth2/v2.0/token",
-                    self.tenant_id,
-                );
+                let url =
+                    &format!("https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token");
 
                 // Throttle as specified by Azure. `slow_down` responses bump
                 // this by 5 seconds for the next iteration (see below).
@@ -154,11 +136,11 @@ impl DeviceCodePhaseOneResponse {
 
                 let encoded = form_urlencoded::Serializer::new(String::new())
                     .append_pair("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
-                    .append_pair("client_id", self.client_id.as_str())
+                    .append_pair("client_id", client_id)
                     .append_pair("device_code", &self.device_code)
                     .finish();
 
-                match post_form(&self.pipeline, url, encoded).await {
+                match post_form(pipeline, url, encoded).await {
                     Ok(rsp) => {
                         let rsp_status = rsp.status();
                         let rsp_body = match rsp.into_body().into_string() {
