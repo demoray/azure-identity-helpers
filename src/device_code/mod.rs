@@ -25,7 +25,19 @@ use time::Duration;
 use url::form_urlencoded;
 
 /// Start the device authorization grant flow.
+///
 /// The user has only 15 minutes to sign in (the usual value for `expires_in`).
+///
+/// `pipeline` is the HTTP pipeline used to issue both this request and every
+/// subsequent token-endpoint poll driven by
+/// [`DeviceCodePhaseOneResponse::stream`]. The pipeline is stored on the
+/// returned response and reused on every poll, so callers running the flow
+/// from a long-lived credential should construct a single [`Pipeline`] once
+/// and pass it in to keep TLS sessions and HTTP connections pooled across
+/// the polling loop. A pipeline built with default options
+/// (`Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None)`)
+/// is sufficient unless custom retry, transport, or policy configuration is
+/// required.
 pub async fn start<'a, 'b, T>(
     pipeline: Pipeline,
     tenant_id: T,

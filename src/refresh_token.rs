@@ -16,6 +16,15 @@ use std::fmt;
 use url::form_urlencoded;
 
 /// Exchange a refresh token for a new access token and refresh token.
+///
+/// `pipeline` is the HTTP pipeline used to issue the token request. Callers
+/// driving repeated refreshes (for example, from inside a long-lived
+/// credential instance) should construct a single [`Pipeline`] once and reuse
+/// it across calls so that TLS sessions and HTTP connections are pooled
+/// between requests. A pipeline built with default options
+/// (`Pipeline::new(None, None, ClientOptions::default(), vec![], vec![], None)`)
+/// is sufficient unless the caller needs custom retry, transport, or policy
+/// configuration.
 pub async fn exchange(
     pipeline: &Pipeline,
     tenant_id: &str,
