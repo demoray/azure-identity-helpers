@@ -158,10 +158,7 @@ impl AzureauthCliCredential {
             std::io::ErrorKind::NotFound => {
                 Error::with_message(ErrorKind::Other, "azureauth CLI not installed")
             }
-            error_kind => Error::with_message(
-                ErrorKind::Other,
-                format!("Unknown error of kind: {error_kind:?}"),
-            ),
+            _ => Error::with_error(ErrorKind::Other, e, "running azureauth CLI"),
         })?;
 
         if !output.status.success() {
