@@ -21,7 +21,6 @@ pub struct ChainedTokenCredentialOptions {
 /// The credential types are tried in the order specified by the user.
 #[derive(Debug)]
 pub struct ChainedTokenCredential {
-    #[allow(dead_code)]
     options: ChainedTokenCredentialOptions,
     sources: Vec<Arc<dyn TokenCredential>>,
     cache: TokenCache,
