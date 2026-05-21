@@ -309,8 +309,7 @@ mod tests {
             _request: &mut azure_core::http::Request,
             _next: &[Arc<dyn azure_core::http::policies::Policy>],
         ) -> azure_core::http::policies::PolicyResult {
-            self.hits
-                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.hits.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             // Short-circuit the pipeline so no real HTTP traffic leaves the
             // process. The credential will surface this error to its caller;
             // we only care that the policy was reached.
@@ -327,9 +326,8 @@ mod tests {
         // and short-circuits. If the credential were ignoring our pipeline
         // and using its own, the recorder would never fire.
         let hits = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-        let recorder: Arc<dyn azure_core::http::policies::Policy> = Arc::new(RecordingPolicy {
-            hits: hits.clone(),
-        });
+        let recorder: Arc<dyn azure_core::http::policies::Policy> =
+            Arc::new(RecordingPolicy { hits: hits.clone() });
         let pipeline = azure_core::http::Pipeline::new(
             None,
             None,
