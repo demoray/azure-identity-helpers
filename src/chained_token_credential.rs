@@ -135,6 +135,16 @@ mod tests {
     };
     use time::OffsetDateTime;
 
+    #[cfg(not(target_arch = "wasm32"))]
+    fn require_send<T: Send>(_t: T) {}
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn ensure_that_get_token_is_send() {
+        let credential = ChainedTokenCredential::new(None);
+        require_send(async move { TokenCredential::get_token(&credential, &[], None).await });
+    }
+
     #[test]
     fn test_adding_azure_cli() -> azure_core::Result<()> {
         let mut credential = ChainedTokenCredential::new(None);
