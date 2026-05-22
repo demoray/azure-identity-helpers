@@ -12,6 +12,8 @@ use azure_core::{
     },
 };
 use serde::Deserialize;
+use std::time::Duration;
+use time::OffsetDateTime;
 use url::form_urlencoded;
 
 /// Exchange a refresh token for a new access token and refresh token.
@@ -84,6 +86,11 @@ pub struct RefreshTokenResponse {
     ext_expires_in: u64,
     access_token: Secret,
     refresh_token: Secret,
+    /// Reference point used to derive [`Self::expires_on`]. Captured at
+    /// deserialize time so the absolute expiry is stable across repeated
+    /// reads of the same response.
+    #[serde(skip, default = "OffsetDateTime::now_utc")]
+    received_at: OffsetDateTime,
 }
 
 impl RefreshTokenResponse {
@@ -101,6 +108,15 @@ impl RefreshTokenResponse {
     #[must_use]
     pub fn expires_in(&self) -> u64 {
         self.expires_in
+    }
+    /// Absolute timestamp at which the `access_token` is no longer valid.
+    ///
+    /// Anchored to the moment the response was deserialized, so repeated
+    /// reads of the same `RefreshTokenResponse` return the same expiry
+    /// rather than drifting forward with the wall clock.
+    #[must_use]
+    pub fn expires_on(&self) -> OffsetDateTime {
+        self.received_at + Duration::from_secs(self.expires_in)
     }
     /// Issued for the scopes that were requested.
     #[must_use]
@@ -147,5 +163,28 @@ mod tests {
             None,
             &Secret::new("UNUSED"),
         ));
+    }
+
+    #[test]
+    fn expires_on_is_stable_across_calls() -> azure_core::Result<()> {
+        let body = r#"{
+            "token_type": "Bearer",
+            "scope": "https://example/.default",
+            "expires_in": 3600,
+            "ext_expires_in": 3600,
+            "access_token": "a",
+            "refresh_token": "r"
+        }"#;
+        let response: RefreshTokenResponse = azure_core::json::from_json(body)?;
+
+        let first = response.expires_on();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        let second = response.expires_on();
+
+        assert_eq!(
+            first, second,
+            "expires_on must be anchored at deserialize time, not drift with wall clock",
+        );
+        Ok(())
     }
 }
