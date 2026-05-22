@@ -9,12 +9,27 @@ use time::OffsetDateTime;
 /// Error response returned from the device code flow.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct DeviceCodeErrorResponse {
+    error: String,
+    error_description: String,
+    error_uri: String,
+}
+
+impl DeviceCodeErrorResponse {
     /// Name of the error.
-    pub error: String,
+    #[must_use]
+    pub fn error(&self) -> &str {
+        &self.error
+    }
     /// Description of the error.
-    pub error_description: String,
-    /// Uri to get more information on this error.
-    pub error_uri: String,
+    #[must_use]
+    pub fn error_description(&self) -> &str {
+        &self.error_description
+    }
+    /// Uri to get more information on this error. May be empty.
+    #[must_use]
+    pub fn error_uri(&self) -> &str {
+        &self.error_uri
+    }
 }
 
 impl std::error::Error for DeviceCodeErrorResponse {}
@@ -22,7 +37,11 @@ impl std::error::Error for DeviceCodeErrorResponse {}
 impl fmt::Display for DeviceCodeErrorResponse {
     // This trait requires `fmt` with this exact signature.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}. {}", self.error, self.error_description)
+        write!(f, "{}. {}", self.error, self.error_description)?;
+        if !self.error_uri.is_empty() {
+            write!(f, " ({})", self.error_uri)?;
+        }
+        Ok(())
     }
 }
 

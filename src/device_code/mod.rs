@@ -197,9 +197,20 @@ impl DeviceCodePhaseOneResponse {
                                 Err(error) => Some((Err(error), NextState::Finish)),
                             }
                         } else {
-                            match from_json::<_, DeviceCodeErrorResponse>(&rsp_body) {
-                                Ok(error_rsp) => {
-                                    let next_state = match error_rsp.error.as_str() {
+                            from_json::<_, DeviceCodeErrorResponse>(&rsp_body).map_or_else(
+                                |_| {
+                                    Some((
+                                        Err(Error::with_message(
+                                            ErrorKind::Credential,
+                                            format!(
+                                                "device code token endpoint returned status {rsp_status}: {rsp_body}"
+                                            ),
+                                        )),
+                                        NextState::Finish,
+                                    ))
+                                },
+                                |error_rsp| {
+                                    let next_state = match error_rsp.error() {
                                         "authorization_pending" => NextState::Continue { interval },
                                         // Per RFC 8628 §3.5 the client must
                                         // extend its polling interval by 5s.
@@ -212,17 +223,8 @@ impl DeviceCodePhaseOneResponse {
                                         Err(Error::new(ErrorKind::Credential, error_rsp)),
                                         next_state,
                                     ))
-                                }
-                                Err(_) => Some((
-                                    Err(Error::with_message(
-                                        ErrorKind::Credential,
-                                        format!(
-                                            "device code token endpoint returned status {rsp_status}: {rsp_body}"
-                                        ),
-                                    )),
-                                    NextState::Finish,
-                                )),
-                            }
+                                },
+                            )
                         }
                     }
                     Err(error) => Some((Err(error), NextState::Finish)),
