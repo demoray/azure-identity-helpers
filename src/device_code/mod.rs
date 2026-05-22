@@ -74,7 +74,7 @@ pub async fn start(
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeviceCodePhaseOneResponse {
     device_code: String,
-    interval: i64,
+    interval: u64,
     message: String,
 }
 
@@ -113,7 +113,7 @@ impl DeviceCodePhaseOneResponse {
         enum NextState {
             /// Keep polling, sleeping `interval` seconds first.
             Continue {
-                interval: i64,
+                interval: u64,
             },
             Finish,
         }
@@ -132,7 +132,10 @@ impl DeviceCodePhaseOneResponse {
 
                 // Throttle as specified by Azure. `slow_down` responses bump
                 // this by 5 seconds for the next iteration (see below).
-                sleep(Duration::seconds(interval)).await;
+                // `time::Duration::seconds` takes an i64; clamp to i64::MAX
+                // for the (effectively impossible) overflow case.
+                let secs = i64::try_from(interval).unwrap_or(i64::MAX);
+                sleep(Duration::seconds(secs)).await;
 
                 let encoded = form_urlencoded::Serializer::new(String::new())
                     .append_pair("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
