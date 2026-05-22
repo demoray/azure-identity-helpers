@@ -18,14 +18,14 @@ mod unix_date_string {
         let as_i64 = s.parse().map_err(|_| {
             Error::with_message(
                 ErrorKind::DataConversion,
-                format!("unable to parse expiration_date '{s}"),
+                format!("unable to parse expiration_date '{s}'"),
             )
         })?;
 
         OffsetDateTime::from_unix_timestamp(as_i64).map_err(|_| {
             Error::with_message(
                 ErrorKind::DataConversion,
-                format!("unable to parse expiration_date '{s}"),
+                format!("unable to parse expiration_date '{s}'"),
             )
         })
     }
