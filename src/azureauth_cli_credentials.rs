@@ -229,6 +229,69 @@ pub(crate) async fn find_azureauth(executor: &dyn Executor) -> Option<&'static O
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        process::Output,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+
+    #[cfg(test)]
+    impl AzureauthCliCredential {
+        fn new_with_executor(
+            tenant_id: impl Into<String>,
+            client_id: impl Into<String>,
+            executor: Arc<dyn Executor>,
+        ) -> Arc<Self> {
+            Arc::new(Self {
+                tenant_id: tenant_id.into(),
+                client_id: client_id.into(),
+                modes: Vec::new(),
+                prompt_hint: None,
+                cache: TokenCache::new(),
+                executor,
+                cmd_name: OnceCell::new(),
+            })
+        }
+    }
+
+    fn success_output() -> Output {
+        Output {
+            status: {
+                #[cfg(windows)]
+                {
+                    std::os::windows::process::ExitStatusExt::from_raw(0)
+                }
+                #[cfg(unix)]
+                {
+                    std::os::unix::process::ExitStatusExt::from_raw(0)
+                }
+            },
+            stdout: Vec::new(),
+            stderr: Vec::new(),
+        }
+    }
+
+    #[derive(Debug, Default)]
+    struct CountingExecutor {
+        which_calls: AtomicUsize,
+        azureauth_calls: AtomicUsize,
+    }
+
+    #[async_trait::async_trait]
+    impl Executor for CountingExecutor {
+        async fn run(&self, program: &OsStr, _args: &[&OsStr]) -> std::io::Result<Output> {
+            if program == OsStr::new("which") || program == OsStr::new("where") {
+                self.which_calls.fetch_add(1, Ordering::SeqCst);
+                Ok(success_output())
+            } else {
+                // Pretend the azureauth invocation itself fails so the
+                // credential surfaces an error rather than trying to parse
+                // an empty JSON body; the test only cares about how many
+                // times we ran `which` / `where`.
+                self.azureauth_calls.fetch_add(1, Ordering::SeqCst);
+                Err(std::io::Error::other("test"))
+            }
+        }
+    }
 
     #[test]
     fn parse_example() -> azure_core::Result<()> {
@@ -249,5 +312,31 @@ mod tests {
         assert_eq!(response.expires_on, expected);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn azureauth_binary_lookup_is_cached_across_calls() {
+        let executor = Arc::new(CountingExecutor::default());
+        let credential = AzureauthCliCredential::new_with_executor(
+            "tenant",
+            "client",
+            executor.clone() as Arc<dyn Executor>,
+        );
+
+        // Two get_token calls with different scopes so the TokenCache
+        // doesn't short-circuit the second one.
+        let _ = credential.get_token(&["scope-a"], None).await;
+        let _ = credential.get_token(&["scope-b"], None).await;
+
+        assert_eq!(
+            executor.which_calls.load(Ordering::SeqCst),
+            1,
+            "find_azureauth should run `which`/`where` exactly once across multiple get_token calls",
+        );
+        assert_eq!(
+            executor.azureauth_calls.load(Ordering::SeqCst),
+            2,
+            "every get_token call should still reach the azureauth invocation",
+        );
     }
 }
