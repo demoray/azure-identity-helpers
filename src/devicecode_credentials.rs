@@ -151,7 +151,7 @@ impl DeviceCodeCredential {
             .await?;
             let token = AccessToken {
                 token: response.access_token().to_owned(),
-                expires_on: convert_expires_in(response.expires_in()),
+                expires_on: response.expires_on(),
             };
             self.refresh_tokens
                 .lock()

@@ -12,6 +12,8 @@ use azure_core::{
     },
 };
 use serde::Deserialize;
+use std::time::Duration;
+use time::OffsetDateTime;
 use url::form_urlencoded;
 
 /// Exchange a refresh token for a new access token and refresh token.
@@ -101,6 +103,15 @@ impl RefreshTokenResponse {
     #[must_use]
     pub fn expires_in(&self) -> u64 {
         self.expires_in
+    }
+    /// Absolute timestamp at which the `access_token` is no longer valid.
+    ///
+    /// Computed from [`Self::expires_in`] and the current wall clock at the
+    /// moment the response was first inspected; small drift relative to the
+    /// server's notion of "now" is expected.
+    #[must_use]
+    pub fn expires_on(&self) -> OffsetDateTime {
+        OffsetDateTime::now_utc() + Duration::from_secs(self.expires_in)
     }
     /// Issued for the scopes that were requested.
     #[must_use]
