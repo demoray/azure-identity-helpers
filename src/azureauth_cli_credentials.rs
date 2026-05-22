@@ -1,4 +1,5 @@
 use crate::cache::TokenCache;
+use async_lock::OnceCell;
 use azure_core::{
     credentials::{AccessToken, Secret, TokenCredential, TokenRequestOptions},
     error::{Error, ErrorKind},
@@ -70,6 +71,7 @@ pub struct AzureauthCliCredential {
     prompt_hint: Option<String>,
     cache: TokenCache,
     executor: Arc<dyn Executor>,
+    cmd_name: OnceCell<&'static OsStr>,
 }
 
 impl AzureauthCliCredential {
@@ -86,6 +88,7 @@ impl AzureauthCliCredential {
             prompt_hint: None,
             cache: TokenCache::new(),
             executor: new_executor(),
+            cmd_name: OnceCell::new(),
         }))
     }
 
@@ -110,14 +113,23 @@ impl AzureauthCliCredential {
         self
     }
 
+    async fn locate_azureauth(&self) -> azure_core::Result<&'static OsStr> {
+        self.cmd_name
+            .get_or_try_init(|| async {
+                find_azureauth(self.executor.as_ref()).await.ok_or_else(|| {
+                    Error::with_message(ErrorKind::Other, "azureauth CLI not installed")
+                })
+            })
+            .await
+            .copied()
+    }
+
     async fn get_access_token(
         &self,
         scopes: &[&str],
         _options: Option<TokenRequestOptions<'_>>,
     ) -> azure_core::Result<AccessToken> {
-        let cmd_name = find_azureauth()
-            .await
-            .ok_or_else(|| Error::with_message(ErrorKind::Other, "azureauth CLI not installed"))?;
+        let cmd_name = self.locate_azureauth().await?;
         let use_windows_features = cmd_name == "azureauth.exe";
 
         // self.credential_options.
@@ -196,14 +208,14 @@ impl TokenCredential for AzureauthCliCredential {
 /// This function checks for the presence of `azureauth.exe` and `azureauth` in the system's `PATH`.
 ///
 /// To support using azureauth within WSL, this checks for `azureauth.exe` first.
-pub async fn find_azureauth() -> Option<&'static OsStr> {
+pub(crate) async fn find_azureauth(executor: &dyn Executor) -> Option<&'static OsStr> {
     #[cfg(target_os = "windows")]
     let which = "where";
     #[cfg(not(target_os = "windows"))]
     let which = "which";
 
     for &exe in &[OsStr::new("azureauth.exe"), OsStr::new("azureauth")] {
-        if new_executor()
+        if executor
             .run(OsStr::new(which), &[exe])
             .await
             .is_ok_and(|x| x.status.success())
@@ -217,6 +229,69 @@ pub async fn find_azureauth() -> Option<&'static OsStr> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        process::Output,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+
+    #[cfg(test)]
+    impl AzureauthCliCredential {
+        fn new_with_executor(
+            tenant_id: impl Into<String>,
+            client_id: impl Into<String>,
+            executor: Arc<dyn Executor>,
+        ) -> Arc<Self> {
+            Arc::new(Self {
+                tenant_id: tenant_id.into(),
+                client_id: client_id.into(),
+                modes: Vec::new(),
+                prompt_hint: None,
+                cache: TokenCache::new(),
+                executor,
+                cmd_name: OnceCell::new(),
+            })
+        }
+    }
+
+    fn success_output() -> Output {
+        Output {
+            status: {
+                #[cfg(windows)]
+                {
+                    std::os::windows::process::ExitStatusExt::from_raw(0)
+                }
+                #[cfg(unix)]
+                {
+                    std::os::unix::process::ExitStatusExt::from_raw(0)
+                }
+            },
+            stdout: Vec::new(),
+            stderr: Vec::new(),
+        }
+    }
+
+    #[derive(Debug, Default)]
+    struct CountingExecutor {
+        which_calls: AtomicUsize,
+        azureauth_calls: AtomicUsize,
+    }
+
+    #[async_trait::async_trait]
+    impl Executor for CountingExecutor {
+        async fn run(&self, program: &OsStr, _args: &[&OsStr]) -> std::io::Result<Output> {
+            if program == OsStr::new("which") || program == OsStr::new("where") {
+                self.which_calls.fetch_add(1, Ordering::SeqCst);
+                Ok(success_output())
+            } else {
+                // Pretend the azureauth invocation itself fails so the
+                // credential surfaces an error rather than trying to parse
+                // an empty JSON body; the test only cares about how many
+                // times we ran `which` / `where`.
+                self.azureauth_calls.fetch_add(1, Ordering::SeqCst);
+                Err(std::io::Error::other("test"))
+            }
+        }
+    }
 
     #[test]
     fn parse_example() -> azure_core::Result<()> {
@@ -237,5 +312,31 @@ mod tests {
         assert_eq!(response.expires_on, expected);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn azureauth_binary_lookup_is_cached_across_calls() {
+        let executor = Arc::new(CountingExecutor::default());
+        let credential = AzureauthCliCredential::new_with_executor(
+            "tenant",
+            "client",
+            executor.clone() as Arc<dyn Executor>,
+        );
+
+        // Two get_token calls with different scopes so the TokenCache
+        // doesn't short-circuit the second one.
+        let _ = credential.get_token(&["scope-a"], None).await;
+        let _ = credential.get_token(&["scope-b"], None).await;
+
+        assert_eq!(
+            executor.which_calls.load(Ordering::SeqCst),
+            1,
+            "find_azureauth should run `which`/`where` exactly once across multiple get_token calls",
+        );
+        assert_eq!(
+            executor.azureauth_calls.load(Ordering::SeqCst),
+            2,
+            "every get_token call should still reach the azureauth invocation",
+        );
     }
 }
