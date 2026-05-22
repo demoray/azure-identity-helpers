@@ -56,10 +56,12 @@ pub async fn start(
     if !rsp_status.is_success() {
         let rsp_body = rsp.into_body().into_string()?;
         // The device-code endpoint returns a structured error body that
-        // matches `DeviceCodeErrorResponse`. Surface that as the source of
-        // the returned error so callers (and `format_aggregate_error`) can
-        // see the AAD error/description/uri; fall back to the raw body
-        // only when the response doesn't parse as the expected shape.
+        // matches `DeviceCodeErrorResponse`. Wrap that as the source of
+        // the returned error so callers (and `format_aggregate_error`)
+        // see both the phase-one context (endpoint + status) and the
+        // AAD error/description/uri; fall back to embedding the raw
+        // body only when the response doesn't parse as the expected
+        // shape.
         return Err(
             from_json::<_, DeviceCodeErrorResponse>(&rsp_body).map_or_else(
                 |_| {
@@ -68,7 +70,13 @@ pub async fn start(
                         format!("device code endpoint returned status {rsp_status}: {rsp_body}"),
                     )
                 },
-                |parsed| Error::new(ErrorKind::Credential, parsed),
+                |parsed| {
+                    Error::with_error(
+                        ErrorKind::Credential,
+                        parsed,
+                        format!("device code endpoint returned status {rsp_status}"),
+                    )
+                },
             ),
         );
     }
