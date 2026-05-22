@@ -132,7 +132,6 @@ impl AzureauthCliCredential {
         let cmd_name = self.locate_azureauth().await?;
         let use_windows_features = cmd_name == "azureauth.exe";
 
-        // self.credential_options.
         let mut cmd = vec![
             "aad",
             "--client",
