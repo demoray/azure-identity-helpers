@@ -3,7 +3,8 @@
 
 use azure_core::credentials::Secret;
 use serde::Deserialize;
-use std::fmt;
+use std::{fmt, time::Duration};
+use time::OffsetDateTime;
 
 /// Error response returned from the device code flow.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -29,12 +30,12 @@ impl fmt::Display for DeviceCodeErrorResponse {
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeviceCodeAuthorization {
     /// Always `Bearer`.
-    pub token_type: String,
+    token_type: String,
     /// The scopes the access token is valid for.
     /// Format: Space separated strings
-    pub scope: String,
+    scope: String,
     /// Number of seconds the included access token is valid for.
-    pub expires_in: u64,
+    expires_in: u64,
     /// Issued for the scopes that were requested.
     /// Format: Opaque string
     access_token: Secret,
@@ -44,9 +45,39 @@ pub struct DeviceCodeAuthorization {
     /// Issued if the original scope parameter included the openid scope.
     /// Format: Opaque string
     id_token: Option<Secret>,
+    /// Reference point used to derive [`Self::expires_on`]. Captured at
+    /// deserialize time so the absolute expiry is stable across repeated
+    /// reads of the same authorization.
+    #[serde(skip, default = "OffsetDateTime::now_utc")]
+    received_at: OffsetDateTime,
 }
 
 impl DeviceCodeAuthorization {
+    /// The token type. Always `Bearer` for Azure AD.
+    #[must_use]
+    pub fn token_type(&self) -> &str {
+        &self.token_type
+    }
+    /// The space-separated list of scopes the access token is valid for.
+    #[must_use]
+    pub fn scope(&self) -> &str {
+        &self.scope
+    }
+    /// Number of seconds the access token is valid for at the time the
+    /// response was issued.
+    #[must_use]
+    pub fn expires_in(&self) -> u64 {
+        self.expires_in
+    }
+    /// Absolute timestamp at which the `access_token` is no longer valid.
+    ///
+    /// Anchored to the moment the response was deserialized, so repeated
+    /// reads of the same `DeviceCodeAuthorization` return the same expiry
+    /// rather than drifting forward with the wall clock.
+    #[must_use]
+    pub fn expires_on(&self) -> OffsetDateTime {
+        self.received_at + Duration::from_secs(self.expires_in)
+    }
     /// Get the access token
     #[must_use]
     pub fn access_token(&self) -> &Secret {
@@ -61,5 +92,31 @@ impl DeviceCodeAuthorization {
     #[must_use]
     pub fn id_token(&self) -> Option<&Secret> {
         self.id_token.as_ref()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expires_on_is_stable_across_calls() -> azure_core::Result<()> {
+        let body = r#"{
+            "token_type": "Bearer",
+            "scope": "https://example/.default",
+            "expires_in": 3600,
+            "access_token": "a"
+        }"#;
+        let auth: DeviceCodeAuthorization = azure_core::json::from_json(body)?;
+
+        let first = auth.expires_on();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        let second = auth.expires_on();
+
+        assert_eq!(
+            first, second,
+            "expires_on must be anchored at deserialize time, not drift with wall clock",
+        );
+        Ok(())
     }
 }

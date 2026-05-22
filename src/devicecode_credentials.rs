@@ -15,9 +15,7 @@ use std::{
     fmt,
     pin::Pin,
     sync::Arc,
-    time::Duration,
 };
-use time::OffsetDateTime;
 use tracing::debug;
 
 /// Future returned by a [`DeviceCodeMessageHandler`].
@@ -201,7 +199,7 @@ impl DeviceCodeCredential {
 
         let token = AccessToken {
             token: auth.access_token().to_owned(),
-            expires_on: convert_expires_in(auth.expires_in),
+            expires_on: auth.expires_on(),
         };
 
         if let Some(refresh_token) = auth.refresh_token() {
@@ -226,10 +224,6 @@ impl TokenCredential for DeviceCodeCredential {
             .get_token(scopes, options, |s, o| self.get_access_token(s, o))
             .await
     }
-}
-
-fn convert_expires_in(seconds: u64) -> OffsetDateTime {
-    OffsetDateTime::now_utc() + Duration::new(seconds, 0)
 }
 
 #[cfg(test)]
