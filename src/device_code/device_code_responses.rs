@@ -55,41 +55,6 @@ impl fmt::Display for DeviceCodeErrorResponse {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn error_response_parses_when_optional_fields_are_missing() -> azure_core::Result<()> {
-        // RFC 6749 §5.2 marks error_description and error_uri as OPTIONAL.
-        // A body that includes only `error` must still parse so the
-        // polling loop can act on `authorization_pending` / `slow_down`.
-        let body = r#"{ "error": "authorization_pending" }"#;
-        let parsed: DeviceCodeErrorResponse = azure_core::json::from_json(body)?;
-
-        assert_eq!(parsed.error(), "authorization_pending");
-        assert_eq!(parsed.error_description(), "");
-        assert_eq!(parsed.error_uri(), "");
-        assert_eq!(parsed.to_string(), "authorization_pending");
-        Ok(())
-    }
-
-    #[test]
-    fn display_surfaces_error_uri_when_present() -> azure_core::Result<()> {
-        let body = r#"{
-            "error": "invalid_grant",
-            "error_description": "AADSTS70008",
-            "error_uri": "https://login.microsoftonline.com/error?code=70008"
-        }"#;
-        let parsed: DeviceCodeErrorResponse = azure_core::json::from_json(body)?;
-        let formatted = parsed.to_string();
-        assert!(formatted.contains("invalid_grant"), "{formatted}");
-        assert!(formatted.contains("AADSTS70008"), "{formatted}");
-        assert!(formatted.contains("error?code=70008"), "{formatted}");
-        Ok(())
-    }
-}
-
 /// A successful token response.
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeviceCodeAuthorization {
@@ -181,6 +146,36 @@ mod tests {
             first, second,
             "expires_on must be anchored at deserialize time, not drift with wall clock",
         );
+        Ok(())
+    }
+
+    #[test]
+    fn error_response_parses_when_optional_fields_are_missing() -> azure_core::Result<()> {
+        // RFC 6749 §5.2 marks error_description and error_uri as OPTIONAL.
+        // A body that includes only `error` must still parse so the
+        // polling loop can act on `authorization_pending` / `slow_down`.
+        let body = r#"{ "error": "authorization_pending" }"#;
+        let parsed: DeviceCodeErrorResponse = azure_core::json::from_json(body)?;
+
+        assert_eq!(parsed.error(), "authorization_pending");
+        assert_eq!(parsed.error_description(), "");
+        assert_eq!(parsed.error_uri(), "");
+        assert_eq!(parsed.to_string(), "authorization_pending");
+        Ok(())
+    }
+
+    #[test]
+    fn display_surfaces_error_uri_when_present() -> azure_core::Result<()> {
+        let body = r#"{
+            "error": "invalid_grant",
+            "error_description": "AADSTS70008",
+            "error_uri": "https://login.microsoftonline.com/error?code=70008"
+        }"#;
+        let parsed: DeviceCodeErrorResponse = azure_core::json::from_json(body)?;
+        let formatted = parsed.to_string();
+        assert!(formatted.contains("invalid_grant"), "{formatted}");
+        assert!(formatted.contains("AADSTS70008"), "{formatted}");
+        assert!(formatted.contains("error?code=70008"), "{formatted}");
         Ok(())
     }
 }
