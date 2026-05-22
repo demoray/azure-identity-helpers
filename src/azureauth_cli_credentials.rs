@@ -14,7 +14,7 @@ mod unix_date_string {
     use serde::{Deserialize, Deserializer};
     use time::OffsetDateTime;
 
-    pub fn parse(s: &str) -> azure_core::Result<OffsetDateTime> {
+    fn parse(s: &str) -> azure_core::Result<OffsetDateTime> {
         let as_i64 = s.parse().map_err(|_| {
             Error::with_message(
                 ErrorKind::DataConversion,
