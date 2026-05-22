@@ -74,8 +74,29 @@ pub async fn start(
 #[derive(Debug, Clone, Deserialize)]
 pub struct DeviceCodePhaseOneResponse {
     device_code: String,
+    #[serde(deserialize_with = "deserialize_polling_interval")]
     interval: u64,
     message: String,
+}
+
+/// Deserialize the polling interval, rejecting values outside `0..=i64::MAX`.
+///
+/// The wire format reports `interval` as a JSON number; pulling it through
+/// `i64` rejects both negative intervals (semantically nonsensical for a
+/// sleep duration) and values too large to ever pass to
+/// `time::Duration::seconds`. Returning an error here surfaces server
+/// misbehavior at the deserialize boundary rather than silently clamping
+/// inside the polling loop.
+fn deserialize_polling_interval<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let secs = i64::deserialize(deserializer)?;
+    u64::try_from(secs).map_err(|_| {
+        serde::de::Error::custom(format!(
+            "device code polling interval must be non-negative, got {secs}"
+        ))
+    })
 }
 
 pub(crate) fn default_pipeline() -> Pipeline {
@@ -231,5 +252,46 @@ mod tests {
     fn ensure_that_start_is_send() {
         let pipeline = default_pipeline();
         require_send(start(&pipeline, "UNUSED", "UNUSED", &[]));
+    }
+
+    #[test]
+    fn interval_deserializes_when_in_range() -> azure_core::Result<()> {
+        let body = r#"{
+            "device_code": "dc",
+            "interval": 5,
+            "message": "go enter the code"
+        }"#;
+        let parsed: DeviceCodePhaseOneResponse = azure_core::json::from_json(body)?;
+        assert_eq!(parsed.interval, 5);
+        Ok(())
+    }
+
+    #[test]
+    fn interval_rejects_negative_values() {
+        let body = r#"{
+            "device_code": "dc",
+            "interval": -1,
+            "message": "go enter the code"
+        }"#;
+        let parsed = azure_core::json::from_json::<&str, DeviceCodePhaseOneResponse>(body);
+        assert!(
+            parsed.is_err(),
+            "negative interval must be rejected at deserialize time",
+        );
+    }
+
+    #[test]
+    fn interval_rejects_values_larger_than_i64_max() {
+        // i64::MAX = 9_223_372_036_854_775_807; add 1 to overflow.
+        let body = r#"{
+            "device_code": "dc",
+            "interval": 9223372036854775808,
+            "message": "go enter the code"
+        }"#;
+        let parsed = azure_core::json::from_json::<&str, DeviceCodePhaseOneResponse>(body);
+        assert!(
+            parsed.is_err(),
+            "interval larger than i64::MAX must be rejected at deserialize time",
+        );
     }
 }
