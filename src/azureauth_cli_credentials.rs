@@ -75,7 +75,7 @@ pub struct AzureauthCliCredential {
 }
 
 impl AzureauthCliCredential {
-    /// Create a new `AzureCliCredential`
+    /// Create a new `AzureauthCliCredential`
     pub fn new<T, C>(tenant_id: T, client_id: C) -> azure_core::Result<Arc<Self>>
     where
         T: Into<String>,
