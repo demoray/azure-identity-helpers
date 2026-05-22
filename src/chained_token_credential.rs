@@ -30,6 +30,13 @@ pub struct ChainedTokenCredential {
 impl ChainedTokenCredential {
     #[must_use]
     /// Create a `ChainedTokenCredential` with options.
+    ///
+    /// Returns the credential by value so callers can configure it with
+    /// [`Self::add_source`] before sharing it. Once the credential is
+    /// shared (for example, cloned into multiple [`Arc`]s), further sources
+    /// cannot be added — [`Self::add_source`] takes `&mut self`, which is
+    /// only reachable while the value is uniquely owned (directly or via
+    /// [`Arc::get_mut`]).
     pub fn new(options: Option<ChainedTokenCredentialOptions>) -> Self {
         Self {
             options: options.unwrap_or_default(),
@@ -40,6 +47,11 @@ impl ChainedTokenCredential {
     }
 
     /// Add a credential source to the chain.
+    ///
+    /// Sources are tried in the order they are added. Because this method
+    /// takes `&mut self`, it can only be called while the credential is
+    /// uniquely owned (directly, or through an `Arc` with no clones via
+    /// [`Arc::get_mut`]). Add all sources before sharing the credential.
     pub fn add_source(&mut self, source: Arc<dyn TokenCredential>) {
         self.sources.push(source);
     }
