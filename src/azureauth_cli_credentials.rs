@@ -44,9 +44,9 @@ struct CliTokenResponse {
     // pub user: String,
     // pub display_name: String,
     #[serde(rename = "token")]
-    pub access_token: Secret,
+    access_token: Secret,
     #[serde(with = "unix_date_string", rename = "expiration_date")]
-    pub expires_on: OffsetDateTime,
+    expires_on: OffsetDateTime,
 }
 
 /// Authentication Mode
