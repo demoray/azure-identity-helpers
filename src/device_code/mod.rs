@@ -99,7 +99,8 @@ pub struct DeviceCodePhaseOneResponse {
     message: String,
 }
 
-/// Deserialize the polling interval, rejecting values outside `0..=i64::MAX`.
+/// Deserialize the polling interval, rejecting values outside `0..=i64::MAX`
+/// and clamping to a minimum of one second.
 ///
 /// The wire format reports `interval` as a JSON number; pulling it through
 /// `i64` rejects both negative intervals (semantically nonsensical for a
@@ -107,16 +108,22 @@ pub struct DeviceCodePhaseOneResponse {
 /// `time::Duration::seconds`. Returning an error here surfaces server
 /// misbehavior at the deserialize boundary rather than silently clamping
 /// inside the polling loop.
+///
+/// `interval = 0` is technically in-range but would turn the polling loop
+/// into a tight busy-loop hammering the AAD token endpoint, so it is
+/// clamped to one second. RFC 8628 §3.5 expects a server-supplied interval
+/// suitable for polling.
 fn deserialize_polling_interval<'de, D>(deserializer: D) -> Result<u64, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
     let secs = i64::deserialize(deserializer)?;
-    u64::try_from(secs).map_err(|_| {
+    let interval = u64::try_from(secs).map_err(|_| {
         serde::de::Error::custom(format!(
             "device code polling interval must be non-negative, got {secs}"
         ))
-    })
+    })?;
+    Ok(interval.max(1))
 }
 
 pub(crate) fn default_pipeline() -> Pipeline {
@@ -315,5 +322,19 @@ mod tests {
             parsed.is_err(),
             "interval larger than i64::MAX must be rejected at deserialize time",
         );
+    }
+
+    #[test]
+    fn interval_clamps_zero_to_one_second() -> azure_core::Result<()> {
+        // A server-supplied interval of 0 would turn the polling loop into a
+        // tight loop on the AAD token endpoint; clamp to a one-second minimum.
+        let body = r#"{
+            "device_code": "dc",
+            "interval": 0,
+            "message": "go enter the code"
+        }"#;
+        let parsed: DeviceCodePhaseOneResponse = azure_core::json::from_json(body)?;
+        assert_eq!(parsed.interval, 1);
+        Ok(())
     }
 }
