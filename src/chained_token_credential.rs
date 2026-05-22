@@ -30,6 +30,11 @@ pub struct ChainedTokenCredential {
 impl ChainedTokenCredential {
     #[must_use]
     /// Create a `ChainedTokenCredential` with options.
+    ///
+    /// Returns the credential by value so callers can configure it with
+    /// [`Self::add_source`] before wrapping it in an [`Arc`]. Once wrapped,
+    /// the chain is immutable; further sources cannot be added because
+    /// [`Self::add_source`] takes `&mut self`.
     pub fn new(options: Option<ChainedTokenCredentialOptions>) -> Self {
         Self {
             options: options.unwrap_or_default(),
@@ -40,6 +45,11 @@ impl ChainedTokenCredential {
     }
 
     /// Add a credential source to the chain.
+    ///
+    /// Sources are tried in the order they are added. Must be called before
+    /// the credential is shared (e.g. wrapped in an [`Arc`]); after sharing,
+    /// `&mut self` is no longer available and the chain is effectively
+    /// frozen.
     pub fn add_source(&mut self, source: Arc<dyn TokenCredential>) {
         self.sources.push(source);
     }
