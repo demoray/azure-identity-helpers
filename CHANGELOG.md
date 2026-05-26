@@ -41,9 +41,9 @@ and **Removed** sections.
   `clippy::incompatible_msrv` enforcement ([#148](https://github.com/demoray/azure-identity-helpers/pull/148)). CI additionally runs
   `cargo msrv verify` so the full compile is exercised at the pinned
   MSRV ([#158](https://github.com/demoray/azure-identity-helpers/pull/158)).
-- CI runs `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` so broken
-  intra-doc links and malformed code blocks fail before they hit
-  docs.rs ([#157](https://github.com/demoray/azure-identity-helpers/pull/157)).
+- CI runs `cargo doc --no-deps --all-features` with `RUSTDOCFLAGS="-D warnings"`
+  so broken intra-doc links and malformed code blocks fail before they
+  hit docs.rs ([#157](https://github.com/demoray/azure-identity-helpers/pull/157)).
 - `#![warn(missing_docs)]` at the crate root; new public items without
   a doc comment now fail CI ([#162](https://github.com/demoray/azure-identity-helpers/pull/162)).
 - Polling interval rejected at deserialize time when outside `0..=i64::MAX`
