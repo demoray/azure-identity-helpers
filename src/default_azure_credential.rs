@@ -331,6 +331,12 @@ impl DefaultAzureCredential {
 }
 
 /// Create a default credential as a trait object.
+#[deprecated(
+    since = "0.2.0",
+    note = "use `DefaultAzureCredential::new()` directly; the returned \
+            `Arc<DefaultAzureCredential>` coerces to `Arc<dyn TokenCredential>` \
+            at the use site"
+)]
 pub fn create_default_credential() -> azure_core::Result<Arc<dyn TokenCredential>> {
     let credential = DefaultAzureCredential::new()?;
     Ok(credential)
