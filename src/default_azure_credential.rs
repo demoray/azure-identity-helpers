@@ -241,7 +241,7 @@ impl DefaultAzureCredentialBuilder {
         #[cfg(not(target_arch = "wasm32"))]
         let mut azure_developer_cli_credential_options = azure_developer_cli_credential_options;
         let mut errors = Vec::new();
-        let mut source_count = 0usize;
+        let mut source_count = 0_usize;
 
         for source in sources {
             match source {
