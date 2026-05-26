@@ -116,8 +116,13 @@ impl ChainedTokenCredential {
         ))
     }
 
-    /// Try to fetch a token using each of the credential sources until one succeeds
-    async fn get_token(
+    /// Try to fetch a token using each of the credential sources until one succeeds.
+    ///
+    /// This lives below the per-scope [`TokenCache`] used in the
+    /// [`TokenCredential`] impl, hence the `_uncached` suffix. It still applies
+    /// the "sticky successful credential" optimization that skips re-walking
+    /// the chain once a source has succeeded.
+    async fn get_token_uncached(
         &self,
         scopes: &[&str],
         options: Option<TokenRequestOptions<'_>>,
@@ -150,7 +155,7 @@ impl TokenCredential for ChainedTokenCredential {
         options: Option<TokenRequestOptions<'_>>,
     ) -> azure_core::Result<AccessToken> {
         self.cache
-            .get_token(scopes, options, |s, o| self.get_token(s, o))
+            .get_token(scopes, options, |s, o| self.get_token_uncached(s, o))
             .await
     }
 }
