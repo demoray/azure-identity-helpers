@@ -38,6 +38,7 @@ perf = { level = "deny", priority = -1 }
 style = { level = "deny", priority = -1 }
 suspicious = { level = "deny", priority = -1 }
 
+print_stderr = "deny"
 missing_const_for_fn = "allow"
 missing_errors_doc = "allow"
 module_name_repetitions = "allow"

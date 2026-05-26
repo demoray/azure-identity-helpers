@@ -117,7 +117,13 @@ impl DeviceCodeCredential {
         if let Some(handler) = &self.message_handler {
             handler(message).await;
         } else {
-            eprintln!("{message}");
+            #[expect(
+                clippy::print_stderr,
+                reason = "intentional fallback for displaying device code prompts when no message_handler is configured"
+            )]
+            {
+                eprintln!("{message}");
+            }
         }
     }
 
