@@ -244,6 +244,7 @@ impl DefaultAzureCredentialBuilder {
                         &environment,
                         Some(EnvironmentCredentialOptions {
                             client_secret: client_secret_credential_options.take(),
+                            ..Default::default()
                         }),
                     ),
                     &mut errors,
