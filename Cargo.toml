@@ -40,6 +40,7 @@ suspicious = { level = "deny", priority = -1 }
 
 allow_attributes = "deny"
 allow_attributes_without_reason = "deny"
+print_stderr = "deny"
 str_to_string = "deny"
 unseparated_literal_suffix = "deny"
 missing_const_for_fn = "allow"
