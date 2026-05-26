@@ -139,5 +139,4 @@ under SemVer §4.
 
 ## [0.1.0]
 
-- Initial release. (Existing entries below this version predate this
-  changelog; populate retroactively if useful.)
+- Initial release.
