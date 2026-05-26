@@ -1,3 +1,6 @@
+//! [AzureAuth CLI](https://github.com/AzureAD/microsoft-authentication-cli)
+//! based authentication.
+
 use crate::cache::TokenCache;
 use async_lock::OnceCell;
 use azure_core::{

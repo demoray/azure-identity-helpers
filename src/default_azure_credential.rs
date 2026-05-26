@@ -1,3 +1,10 @@
+//! `DefaultAzureCredential`.
+//!
+//! A [`ChainedTokenCredential`] that walks the standard set of credential
+//! sources documented for `DefaultAzureCredential` across the Azure SDKs,
+//! using the credential types currently supported by upstream
+//! `azure_identity`.
+
 use crate::{
     chained_token_credential::{
         ChainedTokenCredential, ChainedTokenCredentialOptions, format_aggregate_error,

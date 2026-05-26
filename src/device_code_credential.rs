@@ -1,3 +1,6 @@
+//! `DeviceCodeCredential`: a [`TokenCredential`] implementing the device
+//! code OAuth flow on top of the lower-level helpers in [`crate::device_code`].
+
 use crate::{
     cache::TokenCache,
     device_code::{default_pipeline, start},

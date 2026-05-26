@@ -1,6 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
+//! Credential chaining: try multiple [`TokenCredential`] sources in order
+//! until one succeeds.
+
 use crate::cache::TokenCache;
 use async_lock::RwLock;
 use azure_core::{
@@ -13,6 +16,9 @@ use tracing::debug;
 #[derive(Debug, Default, Clone, Copy)]
 /// [`ChainedTokenCredentialOptions`] contains optional parameters for [`ChainedTokenCredential`].
 pub struct ChainedTokenCredentialOptions {
+    /// If `true`, every `get_token` call walks the full chain again instead
+    /// of caching the first source that succeeded and reusing it on
+    /// subsequent calls.
     pub retry_sources: bool,
 }
 
