@@ -18,7 +18,7 @@
 //! emitted by the credential.
 
 use azure_core::credentials::TokenCredential;
-use azure_identity_helpers::devicecode_credentials::DeviceCodeCredential;
+use azure_identity_helpers::device_code_credential::DeviceCodeCredential;
 use std::env;
 use tracing::info;
 
