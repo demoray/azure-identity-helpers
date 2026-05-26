@@ -13,135 +13,128 @@ and **Removed** sections.
 
 ### Added
 
-- `DeviceCodeCredentialOptions`, allowing callers to pass a custom HTTP
-  `Pipeline` (for shared connection pooling, custom retry/transport/policy
-  configuration) and an async `message_handler` callback for the device-code
-  instruction message instead of the default `eprintln!` to stderr.
+- `DeviceCodeCredentialOptions` carrying an async `message_handler` callback
+  ([#126]) and a caller-supplied HTTP `Pipeline` ([#127]) instead of the
+  default `eprintln!` / per-credential pipeline.
 - `AzureauthCliCredentialOptions` with `modes` and `prompt_hint` fields,
   replacing the previously unreachable fluent builder methods on
-  `AzureauthCliCredential`.
-- `RefreshTokenResponse::expires_on()` and `DeviceCodeAuthorization::expires_on()`
-  accessors that return an absolute `OffsetDateTime` anchored at deserialize
-  time, so repeated reads of the same response don't drift forward with the
-  wall clock.
+  `AzureauthCliCredential` ([#147]).
+- `RefreshTokenResponse::expires_on()` ([#138]) and
+  `DeviceCodeAuthorization::expires_on()` ([#140]) accessors that return an
+  absolute `OffsetDateTime` anchored at deserialize time, so repeated reads
+  of the same response don't drift forward with the wall clock.
 - `DeviceCodeAuthorization::token_type()`, `scopes()`, and `expires_in()`
-  accessors (in concert with the visibility tightening below).
-- `start()` now parses `DeviceCodeErrorResponse` on phase-one failure and
-  wraps it as the source of the returned error, matching what `stream()`
-  already did on phase-two failures.
-- `clippy::incompatible_msrv` is now enforced via `rust-version = "1.91"` in
-  `Cargo.toml`; `cargo publish` will reject newer-stdlib calls.
-- The polling interval is rejected at deserialize time if it falls outside
-  `0..=i64::MAX` (negative values, JSON overflows) and clamped to a one-second
-  minimum so an `interval: 0` from the server can't turn the polling loop
-  into a tight loop on the AAD token endpoint.
-- Significant test coverage: `Send` bounds on every public async constructor,
-  `MockCredential`-driven chain semantics (success short-circuit, fallback,
-  aggregated errors, sticky-credential behavior, `retry_sources` mode),
-  `format_aggregate_error` source-chain walking, custom-pipeline honoring,
-  message-handler async borrow path, scope-order independence in both caches,
-  `expires_on()` stability, optional-field tolerance on
-  `DeviceCodeErrorResponse`, polling-interval bounds, azureauth binary
-  lookup caching, and options-struct plumbing through to the CLI.
+  accessors ([#140]).
+- `start()` parses `DeviceCodeErrorResponse` on phase-one failure and wraps
+  it as the source of the returned error, matching `stream()`'s behavior
+  on phase-two ([#141]).
+- `rust-version = "1.91"` declared in `Cargo.toml`, enabling
+  `clippy::incompatible_msrv` enforcement ([#148]).
+- Polling interval rejected at deserialize time when outside `0..=i64::MAX`
+  ([#143]) and clamped to a one-second minimum so an `interval: 0` from
+  the server can't cause a tight loop ([#144]).
+- Significant test coverage: `Send` bounds on every public async
+  constructor ([#122]), `MockCredential`-driven chain semantics ([#123]),
+  `format_aggregate_error` source-chain walking ([#133]), azureauth binary
+  lookup caching ([#134]), `expires_on()` stability ([#138], [#140]),
+  optional-field tolerance on `DeviceCodeErrorResponse` ([#142]),
+  polling-interval bounds ([#143], [#144]), options-struct plumbing through
+  to the CLI ([#147]), and scope-splitting on messy whitespace ([#149]).
 
 ### Changed
 
 The crate is pre-1.0. Every entry in this section is a breaking API change
 under SemVer §4.
 
-- `DeviceCodeCredential::new`, `AzureauthCliCredential::new`,
-  `DeviceCodeCredentialOptions`, and `AzureauthCliCredentialOptions` now
-  follow the options-struct constructor pattern used across the rest of the
-  crate (and aligned with upstream `azure_identity`'s option-bag credentials).
-  Both options structs are `#[non_exhaustive]` so future fields stay
-  non-breaking.
+- `DeviceCodeCredential::new` ([#126]) and `AzureauthCliCredential::new`
+  ([#147]) follow the options-struct constructor pattern. Both options
+  structs are `#[non_exhaustive]`.
 - `AzureauthCliCredential::new` returns `Arc<Self>` directly instead of
-  `azure_core::Result<Arc<Self>>` (the operation was always infallible).
-- `device_code::start` takes `&Pipeline` and `tenant_id: &str` (was
-  `Pipeline` by value and `T: Into<Cow<'a, str>>`), and
-  `DeviceCodePhaseOneResponse` lost its lifetime parameter.
-- `DeviceCodePhaseOneResponse::stream` now takes `pipeline`, `tenant_id`,
-  and `client_id` as arguments rather than storing them on the response;
-  the response type mirrors only the JSON wire shape.
+  `azure_core::Result<Arc<Self>>` ([#147]).
+- `device_code::start` takes `&Pipeline` ([#125], [#127]) and
+  `tenant_id: &str` ([#129], [#130]); `DeviceCodePhaseOneResponse` lost
+  its lifetime parameter ([#129]).
+- `DeviceCodePhaseOneResponse::stream` takes `pipeline`, `tenant_id`, and
+  `client_id` as arguments; the response type mirrors only the JSON wire
+  shape ([#130]).
 - `refresh_token::exchange` takes `&Pipeline` as its first argument so
-  `DeviceCodeCredential` can share a single pipeline across requests.
-- `TokenCache` and `DeviceCodeCredential.refresh_tokens` key on
-  `BTreeSet<String>` rather than `Vec<String>`, so permutations of the same
-  scope set collapse to a single cache entry instead of triggering redundant
-  token acquisitions.
-- `DeviceCodeAuthorization`'s `scope` field becomes `scopes: Vec<String>`
-  exposed via `scopes() -> &[String]`, mirroring
-  `RefreshTokenResponse::scopes()`. The wire `scope` is split on whitespace
-  so leading, trailing, or repeated separators never produce empty entries.
-- `DeviceCodeAuthorization` and `DeviceCodeErrorResponse` field visibility
-  is tightened: all data is private with accessors, matching the secrets
-  fields' existing pattern.
-- `DeviceCodePhaseOneResponse.interval` is typed `u64` (was `i64`).
-- `ChainedTokenCredentialOptions` derives `Clone` and `Copy`.
+  `DeviceCodeCredential` can share a single pipeline across requests
+  ([#125]).
+- `TokenCache` ([#124]) and `DeviceCodeCredential.refresh_tokens` ([#128])
+  key on `BTreeSet<String>` rather than `Vec<String>`.
+- `DeviceCodeAuthorization`'s `scope: String` becomes
+  `scopes: Vec<String>` exposed via `scopes() -> &[String]` ([#149]),
+  splitting on whitespace so leading/trailing/repeated separators never
+  produce empty entries ([#149]).
+- `DeviceCodeAuthorization` ([#140]) and `DeviceCodeErrorResponse`
+  ([#142]) field visibility tightened: all data is private with
+  accessors.
+- `DeviceCodePhaseOneResponse.interval` is typed `u64` ([#143]).
+- `ChainedTokenCredentialOptions` derives `Clone` and `Copy` ([#132]).
 - `device_code` re-exports `DeviceCodeAuthorization` and
-  `DeviceCodeErrorResponse` explicitly (was a glob re-export).
-- `DeviceCodeErrorResponse::Display` surfaces `error_uri` when present.
-- The `devicecode_credentials` module is renamed to `device_code_credential`
-  to match the naming convention of sibling modules.
-- The `cache` module is now `pub(crate)` — it never had any externally
-  reachable items.
-- The crate docs no longer carry "Originally from `azure_identity` 0.20.0"
-  lineage notes; the modules have diverged substantially.
+  `DeviceCodeErrorResponse` explicitly ([#150]).
+- `DeviceCodeErrorResponse::Display` surfaces `error_uri` when present
+  ([#142]).
+- `devicecode_credentials` module renamed to `device_code_credential`
+  ([#152]).
+- `cache` module is now `pub(crate)` ([#151]).
+- Crate docs no longer carry "Originally from `azure_identity` 0.20.0"
+  lineage notes ([#153]).
 - `add_source` and `new` on `ChainedTokenCredential` document the
-  ownership requirement (must add sources before sharing the `Arc`).
+  ownership requirement (must add sources before sharing the `Arc`)
+  ([#139]).
 
 ### Fixed
 
-- Scope-order cache collisions in `TokenCache` and
-  `DeviceCodeCredential.refresh_tokens`: `["a", "b"]` and `["b", "a"]`
-  formerly produced different cache entries.
+- Scope-order cache collisions in `TokenCache` ([#124]) and
+  `DeviceCodeCredential.refresh_tokens` ([#128]): permutations of the
+  same scope set formerly produced different entries.
 - `device_code::start()` and `refresh_token::exchange()` previously built
-  a fresh `Pipeline` (and a fresh `reqwest::Client`) on every request,
-  losing TLS sessions and HTTP connection pooling — especially harmful
-  across the device-code polling loop. A single pipeline is now created
-  per `DeviceCodeCredential` and threaded through.
+  a fresh `Pipeline` (and `reqwest::Client`) on every request, losing TLS
+  and HTTP pooling — especially harmful across the device-code polling
+  loop. A single pipeline is now created per `DeviceCodeCredential` and
+  threaded through ([#125]).
 - `AzureauthCliCredential` previously shelled out a `which`/`where`
   subprocess on every `get_token` call to locate the azureauth binary;
-  the result is now cached in an `async_lock::OnceCell` and discovered
-  at most once per credential lifetime.
-- `AzureauthCliCredential` no longer drops the underlying `io::Error`
-  context when the azureauth subprocess fails for reasons other than
-  `NotFound`; the original `io::Error` is now preserved as the source.
-- `start()`'s phase-one error path now wraps the parsed
+  the result is now cached and discovered at most once per credential
+  lifetime ([#134]).
+- `AzureauthCliCredential` preserves the underlying `io::Error` when the
+  azureauth subprocess fails for reasons other than `NotFound` ([#121]).
+- `start()`'s phase-one error path wraps the parsed
   `DeviceCodeErrorResponse` via `Error::with_error` so the outer message
-  retains the endpoint status while the parsed AAD error is the source.
+  retains the endpoint status while the parsed AAD error is the source
+  ([#141]).
 - `DeviceCodeErrorResponse` tolerates missing `error_description` and
-  `error_uri` (both OPTIONAL per RFC 6749 §5.2); without this the polling
-  loop could fail to recognize an `authorization_pending` response that
-  arrived with only `error` set, terminating polling.
-- An `interval: 0` response can no longer turn the polling loop into a
-  tight loop; the deserializer clamps to a one-second minimum.
-- The `expiration_date` parse-error message in
-  `azureauth_cli_credentials::unix_date_string` had an opening single
-  quote with no closing quote.
-- Several typo, dead-code, and doc-comment cleanups too small to enumerate
-  individually.
+  `error_uri` (both OPTIONAL per RFC 6749 §5.2) — without this the
+  polling loop could fail to recognize an `authorization_pending`
+  response with only `error` set ([#142]).
+- `interval: 0` no longer turns the polling loop into a tight loop on
+  the AAD token endpoint; the deserializer clamps to a one-second
+  minimum ([#144]).
+- `unix_date_string`'s `expiration_date` parse-error message had an
+  opening single quote with no closing quote ([#136]).
+- Small typo / dead-code / doc-comment cleanups ([#119], [#120], [#135],
+  [#137], [#145], [#146]).
 
 ### Removed
 
-- `RefreshTokenError` (never deserialized into; replaced by structured
-  `DeviceCodeErrorResponse` handling on both phase-one and phase-two paths
-  for the device-code flow).
-- `AzureauthCliCredential::add_mode`, `with_modes`, and `with_prompt_hint`
-  fluent methods. They were uncallable in practice because `new()` returned
-  `Arc<Self>`. Set the equivalents on `AzureauthCliCredentialOptions`
-  instead.
-- The unused `Cow<'a, str>` lifetime on `DeviceCodePhaseOneResponse`.
-- Throwaway `Pipeline` and `default_pipeline()` allocations from the
-  device-code `start()` path.
+- `RefreshTokenError` (never deserialized into) ([#131]).
+- `AzureauthCliCredential::add_mode`, `with_modes`, and
+  `with_prompt_hint` fluent methods — uncallable in practice because
+  `new()` returned `Arc<Self>`; configure via `AzureauthCliCredentialOptions`
+  instead ([#147]).
+- The unused `Cow<'a, str>` lifetime on `DeviceCodePhaseOneResponse`
+  ([#129]).
+- Throwaway `Pipeline` allocations from the device-code `start()` path
+  ([#130]).
 - A `#[allow(dead_code)]` attribute that's no longer needed since the
-  fields it covered are now read.
+  fields it covered are now read ([#120]).
 
 ## [0.1.0] - 2026-05-12
 
 ### Changed
 
-- Routine dependency refresh.
+- Routine dependency refresh ([#117]).
 
 ## [0.0.18] - 2026-05-05
 
@@ -150,24 +143,20 @@ under SemVer §4.
 - Device-code polling now honors RFC 8628 §3.5: `authorization_pending`
   and `slow_down` keep the loop alive (the latter extends the polling
   interval by 5s), and terminal server errors (e.g. `expired_token`,
-  `access_denied`) are surfaced rather than swallowed.
-
-### Changed
-
-- Routine dependency refresh.
+  `access_denied`) are surfaced rather than swallowed ([#114]).
 
 ## [0.0.17] - 2026-04-23
 
 ### Changed
 
-- Address updated clippy lints.
-- Routine dependency refresh.
+- Address updated clippy lints ([#111]).
+- Routine dependency refresh ([#107], [#110]).
 
 ## [0.0.16] - 2026-04-09
 
 ### Changed
 
-- Routine dependency refresh.
+- Routine dependency refresh ([#102], [#103], [#104]).
 
 ## [0.0.15] - 2026-03-19
 
@@ -175,7 +164,7 @@ under SemVer §4.
 
 - `DefaultAzureCredential` and `EnvironmentCredential`, ported from the
   pre-1.0 `azure_identity` 0.20.0 shape that newer upstream releases
-  dropped.
+  dropped ([#98]).
 
 ## [0.0.14] - 2026-03-11
 
@@ -186,31 +175,97 @@ been removed across its breaking releases.
 
 ### Added
 
-- `AzureauthCliCredential` — wraps the [AzureAuth
-  CLI](https://github.com/AzureAD/microsoft-authentication-cli) and
-  exposes it as a `TokenCredential`. Includes the `find_azureauth`
-  helper for locating the executable on `PATH`.
+- `AzureauthCliCredential`, wrapping the [AzureAuth
+  CLI](https://github.com/AzureAD/microsoft-authentication-cli), plus
+  the `find_azureauth` helper for locating the executable on `PATH`
+  ([#7], [#13]).
 - `DeviceCodeCredential` and the underlying `device_code` flow
   (`start`, `DeviceCodePhaseOneResponse::stream`, `DeviceCodeAuthorization`,
-  `DeviceCodeErrorResponse`).
-- `refresh_token::exchange` and `RefreshTokenResponse`.
+  `DeviceCodeErrorResponse`) ([#6], [#12]).
+- `refresh_token::exchange` and `RefreshTokenResponse` ([#6]).
 - `TokenCache` (internal) and `ChainedTokenCredential` for composing
   multiple credential sources with caching.
 - Lint specification in `Cargo.toml` opting into `pedantic`, `nursery`,
   `cargo`, `perf`, `style`, `correctness`, `suspicious`, plus
   `unwrap_used` / `expect_used` / `panic` / `indexing_slicing` at the
-  crate root.
-- HTTP pipeline support for the device-code and refresh-token requests.
+  crate root ([#65]).
+- HTTP pipeline support for the device-code and refresh-token requests
+  ([#55]).
+- Per-source logging in `ChainedTokenCredential` ([#8]).
 
 ### Changed
 
 - `AzureauthCliCredential` aligned to look like other credential
-  providers in the crate.
-- `parking_lot::Mutex` replaced with `async_lock::Mutex` to avoid the
-  extra synchronous dependency in an async-only code path.
+  providers in the crate ([#7]).
+- `parking_lot::Mutex` replaced with the existing `async_lock::Mutex`
+  to avoid a synchronous-only dep in async-only code ([#11]).
 - Dependencies pinned with `default-features = false`; opt-in features
   enabled explicitly so downstream consumers don't drag in surprise
-  transitive deps.
-- Tracking updates for `azure_identity` / `azure_core` 0.23 → 0.25 →
-  0.29 across the early releases.
+  transitive deps ([#81], [#85]).
+- Tracked upstream `azure_identity` / `azure_core` releases through
+  0.23, 0.24, 0.25, and 0.29 ([#20], [#24], [#29], [#36], [#64]).
 
+### Fixed
+
+- Initial `DeviceCodeCredential` error-code handling ([#15]).
+
+[#6]: https://github.com/demoray/azure-identity-helpers/pull/6
+[#7]: https://github.com/demoray/azure-identity-helpers/pull/7
+[#8]: https://github.com/demoray/azure-identity-helpers/pull/8
+[#11]: https://github.com/demoray/azure-identity-helpers/pull/11
+[#12]: https://github.com/demoray/azure-identity-helpers/pull/12
+[#13]: https://github.com/demoray/azure-identity-helpers/pull/13
+[#15]: https://github.com/demoray/azure-identity-helpers/pull/15
+[#20]: https://github.com/demoray/azure-identity-helpers/pull/20
+[#24]: https://github.com/demoray/azure-identity-helpers/pull/24
+[#29]: https://github.com/demoray/azure-identity-helpers/pull/29
+[#36]: https://github.com/demoray/azure-identity-helpers/pull/36
+[#55]: https://github.com/demoray/azure-identity-helpers/pull/55
+[#64]: https://github.com/demoray/azure-identity-helpers/pull/64
+[#65]: https://github.com/demoray/azure-identity-helpers/pull/65
+[#81]: https://github.com/demoray/azure-identity-helpers/pull/81
+[#85]: https://github.com/demoray/azure-identity-helpers/pull/85
+[#98]: https://github.com/demoray/azure-identity-helpers/pull/98
+[#102]: https://github.com/demoray/azure-identity-helpers/pull/102
+[#103]: https://github.com/demoray/azure-identity-helpers/pull/103
+[#104]: https://github.com/demoray/azure-identity-helpers/pull/104
+[#107]: https://github.com/demoray/azure-identity-helpers/pull/107
+[#110]: https://github.com/demoray/azure-identity-helpers/pull/110
+[#111]: https://github.com/demoray/azure-identity-helpers/pull/111
+[#114]: https://github.com/demoray/azure-identity-helpers/pull/114
+[#117]: https://github.com/demoray/azure-identity-helpers/pull/117
+[#119]: https://github.com/demoray/azure-identity-helpers/pull/119
+[#120]: https://github.com/demoray/azure-identity-helpers/pull/120
+[#121]: https://github.com/demoray/azure-identity-helpers/pull/121
+[#122]: https://github.com/demoray/azure-identity-helpers/pull/122
+[#123]: https://github.com/demoray/azure-identity-helpers/pull/123
+[#124]: https://github.com/demoray/azure-identity-helpers/pull/124
+[#125]: https://github.com/demoray/azure-identity-helpers/pull/125
+[#126]: https://github.com/demoray/azure-identity-helpers/pull/126
+[#127]: https://github.com/demoray/azure-identity-helpers/pull/127
+[#128]: https://github.com/demoray/azure-identity-helpers/pull/128
+[#129]: https://github.com/demoray/azure-identity-helpers/pull/129
+[#130]: https://github.com/demoray/azure-identity-helpers/pull/130
+[#131]: https://github.com/demoray/azure-identity-helpers/pull/131
+[#132]: https://github.com/demoray/azure-identity-helpers/pull/132
+[#133]: https://github.com/demoray/azure-identity-helpers/pull/133
+[#134]: https://github.com/demoray/azure-identity-helpers/pull/134
+[#135]: https://github.com/demoray/azure-identity-helpers/pull/135
+[#136]: https://github.com/demoray/azure-identity-helpers/pull/136
+[#137]: https://github.com/demoray/azure-identity-helpers/pull/137
+[#138]: https://github.com/demoray/azure-identity-helpers/pull/138
+[#139]: https://github.com/demoray/azure-identity-helpers/pull/139
+[#140]: https://github.com/demoray/azure-identity-helpers/pull/140
+[#141]: https://github.com/demoray/azure-identity-helpers/pull/141
+[#142]: https://github.com/demoray/azure-identity-helpers/pull/142
+[#143]: https://github.com/demoray/azure-identity-helpers/pull/143
+[#144]: https://github.com/demoray/azure-identity-helpers/pull/144
+[#145]: https://github.com/demoray/azure-identity-helpers/pull/145
+[#146]: https://github.com/demoray/azure-identity-helpers/pull/146
+[#147]: https://github.com/demoray/azure-identity-helpers/pull/147
+[#148]: https://github.com/demoray/azure-identity-helpers/pull/148
+[#149]: https://github.com/demoray/azure-identity-helpers/pull/149
+[#150]: https://github.com/demoray/azure-identity-helpers/pull/150
+[#151]: https://github.com/demoray/azure-identity-helpers/pull/151
+[#152]: https://github.com/demoray/azure-identity-helpers/pull/152
+[#153]: https://github.com/demoray/azure-identity-helpers/pull/153
