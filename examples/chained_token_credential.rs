@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
 
-    let scope = env::var("AZURE_SCOPE").unwrap_or_else(|_| DEFAULT_SCOPE.to_string());
+    let scope = env::var("AZURE_SCOPE").unwrap_or_else(|_| DEFAULT_SCOPE.to_owned());
 
     // Add sources before sharing the credential — add_source() takes
     // &mut self, so once the value is wrapped in an Arc no further sources

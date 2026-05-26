@@ -39,6 +39,7 @@ style = { level = "deny", priority = -1 }
 suspicious = { level = "deny", priority = -1 }
 
 same_name_method = "deny"
+str_to_string = "deny"
 unseparated_literal_suffix = "deny"
 missing_const_for_fn = "allow"
 missing_errors_doc = "allow"
