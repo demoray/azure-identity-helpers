@@ -40,6 +40,7 @@ suspicious = { level = "deny", priority = -1 }
 
 missing_const_for_fn = "allow"
 missing_errors_doc = "allow"
+module_name_repetitions = "allow"
 significant_drop_tightening = "allow"
 multiple_crate_versions = "allow"
 
