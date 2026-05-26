@@ -3,57 +3,8 @@
 
 use azure_core::credentials::Secret;
 use serde::Deserialize;
-use std::{fmt, time::Duration};
+use std::time::Duration;
 use time::OffsetDateTime;
-
-/// Error response returned from the device code flow.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-pub struct DeviceCodeErrorResponse {
-    error: String,
-    // The OAuth 2.0 error response (RFC 6749 §5.2) marks
-    // `error_description` and `error_uri` as OPTIONAL. Default to an
-    // empty string so a body that omits either field still parses as a
-    // structured error rather than getting reported as an unstructured
-    // status-code-only failure.
-    #[serde(default)]
-    error_description: String,
-    #[serde(default)]
-    error_uri: String,
-}
-
-impl DeviceCodeErrorResponse {
-    /// Name of the error.
-    #[must_use]
-    pub fn error(&self) -> &str {
-        &self.error
-    }
-    /// Description of the error. May be empty.
-    #[must_use]
-    pub fn error_description(&self) -> &str {
-        &self.error_description
-    }
-    /// Uri to get more information on this error. May be empty.
-    #[must_use]
-    pub fn error_uri(&self) -> &str {
-        &self.error_uri
-    }
-}
-
-impl std::error::Error for DeviceCodeErrorResponse {}
-
-impl fmt::Display for DeviceCodeErrorResponse {
-    // This trait requires `fmt` with this exact signature.
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(&self.error)?;
-        if !self.error_description.is_empty() {
-            write!(f, ". {}", self.error_description)?;
-        }
-        if !self.error_uri.is_empty() {
-            write!(f, " ({})", self.error_uri)?;
-        }
-        Ok(())
-    }
-}
 
 /// A successful token response.
 #[derive(Debug, Clone, Deserialize)]
@@ -157,36 +108,6 @@ mod tests {
             first, second,
             "expires_on must be anchored at deserialize time, not drift with wall clock",
         );
-        Ok(())
-    }
-
-    #[test]
-    fn error_response_parses_when_optional_fields_are_missing() -> azure_core::Result<()> {
-        // RFC 6749 §5.2 marks error_description and error_uri as OPTIONAL.
-        // A body that includes only `error` must still parse so the
-        // polling loop can act on `authorization_pending` / `slow_down`.
-        let body = r#"{ "error": "authorization_pending" }"#;
-        let parsed: DeviceCodeErrorResponse = azure_core::json::from_json(body)?;
-
-        assert_eq!(parsed.error(), "authorization_pending");
-        assert_eq!(parsed.error_description(), "");
-        assert_eq!(parsed.error_uri(), "");
-        assert_eq!(parsed.to_string(), "authorization_pending");
-        Ok(())
-    }
-
-    #[test]
-    fn display_surfaces_error_uri_when_present() -> azure_core::Result<()> {
-        let body = r#"{
-            "error": "invalid_grant",
-            "error_description": "AADSTS70008",
-            "error_uri": "https://login.microsoftonline.com/error?code=70008"
-        }"#;
-        let parsed: DeviceCodeErrorResponse = azure_core::json::from_json(body)?;
-        let formatted = parsed.to_string();
-        assert!(formatted.contains("invalid_grant"), "{formatted}");
-        assert!(formatted.contains("AADSTS70008"), "{formatted}");
-        assert!(formatted.contains("error?code=70008"), "{formatted}");
         Ok(())
     }
 

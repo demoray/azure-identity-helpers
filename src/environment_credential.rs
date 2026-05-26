@@ -44,6 +44,19 @@ impl EnvironmentSettings {
     }
 }
 
+/// Optional configuration for [`EnvironmentCredential`].
+///
+/// The struct is `#[non_exhaustive]` so it can grow new credential-source
+/// configuration knobs (matching the Python-style multi-source
+/// `EnvironmentCredential` shape) without further breaking changes.
+#[derive(Debug, Default)]
+#[non_exhaustive]
+pub struct EnvironmentCredentialOptions {
+    /// Options forwarded to the underlying [`ClientSecretCredential`] when
+    /// the environment is configured for service-principal authentication.
+    pub client_secret: Option<ClientSecretCredentialOptions>,
+}
+
 #[derive(Debug)]
 enum EnvironmentCredentialSource {
     ClientSecret(Arc<ClientSecretCredential>),
@@ -56,21 +69,19 @@ pub struct EnvironmentCredential {
 
 impl EnvironmentCredential {
     /// Create an `EnvironmentCredential` from the current process environment.
-    pub fn new(
-        client_secret_credential_options: Option<ClientSecretCredentialOptions>,
-    ) -> azure_core::Result<Arc<Self>> {
-        Self::from_settings(
-            &EnvironmentSettings::from_os_env(),
-            client_secret_credential_options,
-        )
+    ///
+    /// Pass `None` to accept the defaults; see
+    /// [`EnvironmentCredentialOptions`] for the available knobs.
+    pub fn new(options: Option<EnvironmentCredentialOptions>) -> azure_core::Result<Arc<Self>> {
+        Self::from_settings(&EnvironmentSettings::from_os_env(), options)
     }
 
     pub(crate) fn from_settings(
         environment: &EnvironmentSettings,
-        client_secret_credential_options: Option<ClientSecretCredentialOptions>,
+        options: Option<EnvironmentCredentialOptions>,
     ) -> azure_core::Result<Arc<Self>> {
-        let credential =
-            create_client_secret_credential(environment, client_secret_credential_options)?;
+        let options = options.unwrap_or_default();
+        let credential = create_client_secret_credential(environment, options.client_secret)?;
         Ok(Arc::new(Self {
             source: EnvironmentCredentialSource::ClientSecret(credential),
         }))

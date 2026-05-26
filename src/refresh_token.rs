@@ -17,7 +17,7 @@ use std::time::Duration;
 use time::OffsetDateTime;
 use url::form_urlencoded;
 
-use crate::device_code::DeviceCodeErrorResponse;
+use crate::oauth_error::OAuthErrorResponse;
 
 /// Exchange a refresh token for a new access token and refresh token.
 ///
@@ -85,11 +85,11 @@ pub async fn exchange(
         let body = result.into_body().into_string()?;
         // The AAD token endpoint returns the same OAuth-shaped error body
         // for refresh-token failures that the device-code flow already
-        // parses via DeviceCodeErrorResponse (RFC 6749 §5.2). Wrap that as
+        // parses via OAuthErrorResponse (RFC 6749 §5.2). Wrap that as
         // the source of the returned error so callers see the structured
         // AAD error / description / uri; fall back to embedding the raw
         // body only when the response doesn't parse as the expected shape.
-        Err(from_json::<_, DeviceCodeErrorResponse>(&body).map_or_else(
+        Err(from_json::<_, OAuthErrorResponse>(&body).map_or_else(
             |_| {
                 Error::with_message(
                     ErrorKind::Credential,

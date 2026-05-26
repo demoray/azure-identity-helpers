@@ -3,7 +3,8 @@ use crate::{
         ChainedTokenCredential, ChainedTokenCredentialOptions, format_aggregate_error,
     },
     environment_credential::{
-        EnvironmentCredential, EnvironmentSettings, create_workload_identity_credential,
+        EnvironmentCredential, EnvironmentCredentialOptions, EnvironmentSettings,
+        create_workload_identity_credential,
     },
 };
 use azure_core::{
@@ -241,7 +242,10 @@ impl DefaultAzureCredentialBuilder {
                     &mut credential,
                     EnvironmentCredential::from_settings(
                         &environment,
-                        client_secret_credential_options.take(),
+                        Some(EnvironmentCredentialOptions {
+                            client_secret: client_secret_credential_options.take(),
+                            ..Default::default()
+                        }),
                     ),
                     &mut errors,
                     &mut source_count,
