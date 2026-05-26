@@ -33,5 +33,8 @@ jobs:
     - uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0
       with:
         crate: cargo-readme
+    - uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0
+      with:
+        crate: cargo-msrv
     - run: ./eng/build.sh
       shell: bash
