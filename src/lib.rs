@@ -21,6 +21,7 @@
 //!
 
 #![forbid(unsafe_code)]
+#![warn(missing_docs)]
 #![deny(
     clippy::indexing_slicing,
     clippy::manual_assert,

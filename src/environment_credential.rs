@@ -62,6 +62,13 @@ enum EnvironmentCredentialSource {
     ClientSecret(Arc<ClientSecretCredential>),
 }
 
+/// A [`TokenCredential`] backed by environment variables.
+///
+/// Currently dispatches to a [`ClientSecretCredential`] built from
+/// `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET`. Future
+/// versions are expected to expand to additional credential sources (workload
+/// identity, client certificate, etc.) mirroring the Python
+/// `azure-identity` shape.
 #[derive(Debug)]
 pub struct EnvironmentCredential {
     source: EnvironmentCredentialSource,
