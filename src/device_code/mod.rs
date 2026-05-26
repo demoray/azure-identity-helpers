@@ -131,9 +131,9 @@ where
     D: serde::Deserializer<'de>,
 {
     let secs = i64::deserialize(deserializer)?;
-    let interval = u64::try_from(secs).map_err(|_| {
+    let interval = u64::try_from(secs).map_err(|e| {
         serde::de::Error::custom(format!(
-            "device code polling interval must be non-negative, got {secs}"
+            "device code polling interval must be non-negative, got {secs}: {e}"
         ))
     })?;
     Ok(interval.max(1))

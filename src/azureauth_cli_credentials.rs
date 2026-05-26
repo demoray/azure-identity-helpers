@@ -19,17 +19,17 @@ mod unix_date_string {
     use time::OffsetDateTime;
 
     fn parse(s: &str) -> azure_core::Result<OffsetDateTime> {
-        let as_i64 = s.parse().map_err(|_| {
+        let as_i64 = s.parse().map_err(|e| {
             Error::with_message(
                 ErrorKind::DataConversion,
-                format!("unable to parse expiration_date '{s}'"),
+                format!("unable to parse expiration_date '{s}': {e}"),
             )
         })?;
 
-        OffsetDateTime::from_unix_timestamp(as_i64).map_err(|_| {
+        OffsetDateTime::from_unix_timestamp(as_i64).map_err(|e| {
             Error::with_message(
                 ErrorKind::DataConversion,
-                format!("unable to parse expiration_date '{s}'"),
+                format!("unable to parse expiration_date '{s}': {e}"),
             )
         })
     }

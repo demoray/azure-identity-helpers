@@ -272,8 +272,8 @@ mod tests {
         credential.emit_message("hello").await;
         credential.emit_message("world").await;
 
-        let log = captured.lock().map_err(|_| {
-            Error::with_message(ErrorKind::Other, "captured-message log mutex poisoned")
+        let log = captured.lock().map_err(|e| {
+            Error::with_message(ErrorKind::Other, format!("captured-message log mutex poisoned: {e}"))
         })?;
         assert_eq!(
             *log,
