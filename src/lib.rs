@@ -16,6 +16,7 @@
 //! - `device_code`: Provides device code flow authentication support for Azure services.
 //! - `device_code_credential`: Implements a credential that can authenticate using device code flow. Uses the `device_code` module's functionality.
 //! - `environment_credential`: Recreates an `EnvironmentCredential`-style helper for service principal authentication from environment variables.
+//! - `oauth_error`: Shared OAuth 2.0 error response type (RFC 6749 §5.2) used by the device-code and refresh-token endpoints on failure.
 //! - `refresh_token`: Handles refresh token operations for maintaining authentication sessions.
 //!
 
@@ -35,4 +36,5 @@ pub mod default_azure_credential;
 pub mod device_code;
 pub mod device_code_credential;
 pub mod environment_credential;
+pub mod oauth_error;
 pub mod refresh_token;

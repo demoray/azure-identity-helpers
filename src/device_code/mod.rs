@@ -17,12 +17,27 @@ use azure_core::{
     json::from_json,
     sleep::sleep,
 };
-pub use device_code_responses::{DeviceCodeAuthorization, DeviceCodeErrorResponse};
+pub use device_code_responses::DeviceCodeAuthorization;
 use futures::stream::unfold;
 use serde::Deserialize;
 use std::pin::Pin;
 use time::Duration;
 use url::form_urlencoded;
+
+use crate::oauth_error::OAuthErrorResponse;
+
+/// Re-export of [`crate::oauth_error::OAuthErrorResponse`] under its
+/// previous name.
+///
+/// Use [`crate::oauth_error::OAuthErrorResponse`] directly; both refresh-token
+/// failures and device-code failures surface the same OAuth 2.0 error body
+/// (RFC 6749 §5.2), and the type now lives in its own module to make that
+/// sharing explicit.
+#[deprecated(
+    since = "0.2.0",
+    note = "use `azure_identity_helpers::oauth_error::OAuthErrorResponse` instead"
+)]
+pub type DeviceCodeErrorResponse = OAuthErrorResponse;
 
 /// Start the device authorization grant flow.
 ///
@@ -56,29 +71,27 @@ pub async fn start(
     if !rsp_status.is_success() {
         let rsp_body = rsp.into_body().into_string()?;
         // The device-code endpoint returns a structured error body that
-        // matches `DeviceCodeErrorResponse`. Wrap that as the source of
+        // matches `OAuthErrorResponse`. Wrap that as the source of
         // the returned error so callers (and `format_aggregate_error`)
         // see both the phase-one context (endpoint + status) and the
         // AAD error/description/uri; fall back to embedding the raw
         // body only when the response doesn't parse as the expected
         // shape.
-        return Err(
-            from_json::<_, DeviceCodeErrorResponse>(&rsp_body).map_or_else(
-                |_| {
-                    Error::with_message(
-                        ErrorKind::Credential,
-                        format!("device code endpoint returned status {rsp_status}: {rsp_body}"),
-                    )
-                },
-                |parsed| {
-                    Error::with_error(
-                        ErrorKind::Credential,
-                        parsed,
-                        format!("device code endpoint returned status {rsp_status}"),
-                    )
-                },
-            ),
-        );
+        return Err(from_json::<_, OAuthErrorResponse>(&rsp_body).map_or_else(
+            |_| {
+                Error::with_message(
+                    ErrorKind::Credential,
+                    format!("device code endpoint returned status {rsp_status}: {rsp_body}"),
+                )
+            },
+            |parsed| {
+                Error::with_error(
+                    ErrorKind::Credential,
+                    parsed,
+                    format!("device code endpoint returned status {rsp_status}"),
+                )
+            },
+        ));
     }
     rsp.into_body().json()
 }
@@ -204,7 +217,7 @@ impl DeviceCodePhaseOneResponse {
                                 Err(error) => Some((Err(error), NextState::Finish)),
                             }
                         } else {
-                            from_json::<_, DeviceCodeErrorResponse>(&rsp_body).map_or_else(
+                            from_json::<_, OAuthErrorResponse>(&rsp_body).map_or_else(
                                 |_| {
                                     Some((
                                         Err(Error::with_message(
