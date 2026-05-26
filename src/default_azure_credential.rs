@@ -454,7 +454,7 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(ref error) if matches!(error.kind(), ErrorKind::Credential)
+            Err(error) if matches!(error.kind(), ErrorKind::Credential)
         ));
     }
 }
