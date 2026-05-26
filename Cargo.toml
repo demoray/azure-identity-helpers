@@ -39,6 +39,7 @@ style = { level = "deny", priority = -1 }
 suspicious = { level = "deny", priority = -1 }
 
 map_err_ignore = "deny"
+print_stderr = "deny"
 str_to_string = "deny"
 unseparated_literal_suffix = "deny"
 missing_const_for_fn = "allow"
