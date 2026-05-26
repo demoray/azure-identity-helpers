@@ -39,6 +39,7 @@ style = { level = "deny", priority = -1 }
 suspicious = { level = "deny", priority = -1 }
 
 same_name_method = "deny"
+ref_patterns = "deny"
 map_err_ignore = "deny"
 allow_attributes = "deny"
 allow_attributes_without_reason = "deny"

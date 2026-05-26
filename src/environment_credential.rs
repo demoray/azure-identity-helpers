@@ -277,7 +277,7 @@ mod tests {
 
         assert!(matches!(
             error,
-            Err(ref error) if matches!(error.kind(), ErrorKind::Credential)
+            Err(error) if matches!(error.kind(), ErrorKind::Credential)
         ));
     }
 
@@ -303,7 +303,7 @@ mod tests {
 
         assert!(matches!(
             error,
-            Err(ref error) if matches!(error.kind(), ErrorKind::Credential)
+            Err(error) if matches!(error.kind(), ErrorKind::Credential)
         ));
     }
 }
