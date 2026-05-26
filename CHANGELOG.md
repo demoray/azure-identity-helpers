@@ -43,9 +43,6 @@ and **Removed** sections.
 
 ### Changed
 
-The crate is pre-1.0. Every entry in this section is a breaking API change
-under SemVer §4.
-
 - `DeviceCodeCredential::new` ([#126](https://github.com/demoray/azure-identity-helpers/pull/126)) and `AzureauthCliCredential::new`
   ([#147](https://github.com/demoray/azure-identity-helpers/pull/147)) follow the options-struct constructor pattern. Both options
   structs are `#[non_exhaustive]`.
