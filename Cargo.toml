@@ -38,6 +38,8 @@ perf = { level = "deny", priority = -1 }
 style = { level = "deny", priority = -1 }
 suspicious = { level = "deny", priority = -1 }
 
+allow_attributes = "deny"
+allow_attributes_without_reason = "deny"
 missing_const_for_fn = "allow"
 missing_errors_doc = "allow"
 module_name_repetitions = "allow"
