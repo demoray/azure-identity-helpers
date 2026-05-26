@@ -275,10 +275,7 @@ mod tests {
         let log = captured.lock().map_err(|_| {
             Error::with_message(ErrorKind::Other, "captured-message log mutex poisoned")
         })?;
-        assert_eq!(
-            *log,
-            vec!["seen:hello".to_string(), "seen:world".to_string()]
-        );
+        assert_eq!(*log, vec!["seen:hello".to_owned(), "seen:world".to_owned()]);
         Ok(())
     }
 
@@ -314,9 +311,9 @@ mod tests {
         // should too.
         let credential = DeviceCodeCredential::new("UNUSED", "UNUSED", None)?;
         let key_first: BTreeSet<String> =
-            ["alpha", "beta"].iter().map(|s| (*s).to_string()).collect();
+            ["alpha", "beta"].iter().map(|s| (*s).to_owned()).collect();
         let key_permuted: BTreeSet<String> =
-            ["beta", "alpha"].iter().map(|s| (*s).to_string()).collect();
+            ["beta", "alpha"].iter().map(|s| (*s).to_owned()).collect();
         assert_eq!(key_first, key_permuted, "BTreeSet keys must compare equal");
 
         credential
