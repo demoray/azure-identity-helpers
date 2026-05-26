@@ -19,27 +19,47 @@ and **Removed** sections.
 - `AzureauthCliCredentialOptions` with `modes` and `prompt_hint` fields,
   replacing the previously unreachable fluent builder methods on
   `AzureauthCliCredential` ([#147](https://github.com/demoray/azure-identity-helpers/pull/147)).
+- `EnvironmentCredentialOptions` wrapping the inner credential-source
+  options ([#160](https://github.com/demoray/azure-identity-helpers/pull/160)); marked `#[non_exhaustive]` so the planned Python-style
+  multi-source expansion can grow without further breaking changes.
+- `oauth_error::OAuthErrorResponse`: shared OAuth 2.0 error response
+  (RFC 6749 §5.2) used by both the device-code and refresh-token
+  endpoints on failure ([#161](https://github.com/demoray/azure-identity-helpers/pull/161)).
 - `RefreshTokenResponse::expires_on()` ([#138](https://github.com/demoray/azure-identity-helpers/pull/138)) and
   `DeviceCodeAuthorization::expires_on()` ([#140](https://github.com/demoray/azure-identity-helpers/pull/140)) accessors that return an
   absolute `OffsetDateTime` anchored at deserialize time, so repeated reads
   of the same response don't drift forward with the wall clock.
 - `DeviceCodeAuthorization::token_type()`, `scopes()`, and `expires_in()`
   accessors ([#140](https://github.com/demoray/azure-identity-helpers/pull/140)).
-- `start()` parses `DeviceCodeErrorResponse` on phase-one failure and wraps
-  it as the source of the returned error, matching `stream()`'s behavior
-  on phase-two ([#141](https://github.com/demoray/azure-identity-helpers/pull/141)).
+- `device_code::start` parses `OAuthErrorResponse` on phase-one failure
+  and wraps it as the source of the returned error, matching `stream()`'s
+  behavior on phase-two ([#141](https://github.com/demoray/azure-identity-helpers/pull/141)).
+- `refresh_token::exchange` parses `OAuthErrorResponse` on failure (same
+  shape, now structurally surfaced everywhere); kills the last
+  `{:?}`-body-render pattern in the credential code ([#156](https://github.com/demoray/azure-identity-helpers/pull/156)).
 - `rust-version = "1.91"` declared in `Cargo.toml`, enabling
-  `clippy::incompatible_msrv` enforcement ([#148](https://github.com/demoray/azure-identity-helpers/pull/148)).
+  `clippy::incompatible_msrv` enforcement ([#148](https://github.com/demoray/azure-identity-helpers/pull/148)). CI additionally runs
+  `cargo msrv verify` so the full compile is exercised at the pinned
+  MSRV ([#158](https://github.com/demoray/azure-identity-helpers/pull/158)).
+- CI runs `cargo doc --no-deps --all-features` with `RUSTDOCFLAGS="-D warnings"`
+  so broken intra-doc links and malformed code blocks fail before they
+  hit docs.rs ([#157](https://github.com/demoray/azure-identity-helpers/pull/157)).
+- `#![warn(missing_docs)]` at the crate root; new public items without
+  a doc comment now fail CI ([#162](https://github.com/demoray/azure-identity-helpers/pull/162)).
 - Polling interval rejected at deserialize time when outside `0..=i64::MAX`
   ([#143](https://github.com/demoray/azure-identity-helpers/pull/143)) and clamped to a one-second minimum so an `interval: 0` from
   the server can't cause a tight loop ([#144](https://github.com/demoray/azure-identity-helpers/pull/144)).
+- Runnable examples for `DefaultAzureCredential` and
+  `ChainedTokenCredential`, plus inline doc-tests on both `::new`
+  methods ([#159](https://github.com/demoray/azure-identity-helpers/pull/159)).
 - Significant test coverage: `Send` bounds on every public async
   constructor ([#122](https://github.com/demoray/azure-identity-helpers/pull/122)), `MockCredential`-driven chain semantics ([#123](https://github.com/demoray/azure-identity-helpers/pull/123)),
   `format_aggregate_error` source-chain walking ([#133](https://github.com/demoray/azure-identity-helpers/pull/133)), azureauth binary
   lookup caching ([#134](https://github.com/demoray/azure-identity-helpers/pull/134)), `expires_on()` stability ([#138](https://github.com/demoray/azure-identity-helpers/pull/138), [#140](https://github.com/demoray/azure-identity-helpers/pull/140)),
-  optional-field tolerance on `DeviceCodeErrorResponse` ([#142](https://github.com/demoray/azure-identity-helpers/pull/142)),
+  optional-field tolerance on `OAuthErrorResponse` ([#142](https://github.com/demoray/azure-identity-helpers/pull/142)),
   polling-interval bounds ([#143](https://github.com/demoray/azure-identity-helpers/pull/143), [#144](https://github.com/demoray/azure-identity-helpers/pull/144)), options-struct plumbing through
-  to the CLI ([#147](https://github.com/demoray/azure-identity-helpers/pull/147)), and scope-splitting on messy whitespace ([#149](https://github.com/demoray/azure-identity-helpers/pull/149)).
+  to the CLI ([#147](https://github.com/demoray/azure-identity-helpers/pull/147)), scope-splitting on messy whitespace ([#149](https://github.com/demoray/azure-identity-helpers/pull/149)), and
+  refresh-token structured-error wrapping ([#156](https://github.com/demoray/azure-identity-helpers/pull/156)).
 
 ### Changed
 
@@ -48,6 +68,8 @@ and **Removed** sections.
   structs are `#[non_exhaustive]`.
 - `AzureauthCliCredential::new` returns `Arc<Self>` directly instead of
   `azure_core::Result<Arc<Self>>` ([#147](https://github.com/demoray/azure-identity-helpers/pull/147)).
+- `EnvironmentCredential::new` takes `Option<EnvironmentCredentialOptions>`
+  instead of the inner `Option<ClientSecretCredentialOptions>` ([#160](https://github.com/demoray/azure-identity-helpers/pull/160)).
 - `device_code::start` takes `&Pipeline` ([#125](https://github.com/demoray/azure-identity-helpers/pull/125), [#127](https://github.com/demoray/azure-identity-helpers/pull/127)) and
   `tenant_id: &str` ([#129](https://github.com/demoray/azure-identity-helpers/pull/129), [#130](https://github.com/demoray/azure-identity-helpers/pull/130)); `DeviceCodePhaseOneResponse` lost
   its lifetime parameter ([#129](https://github.com/demoray/azure-identity-helpers/pull/129)).
@@ -63,15 +85,18 @@ and **Removed** sections.
   `scopes: Vec<String>` exposed via `scopes() -> &[String]` ([#149](https://github.com/demoray/azure-identity-helpers/pull/149)),
   splitting on whitespace so leading/trailing/repeated separators never
   produce empty entries ([#149](https://github.com/demoray/azure-identity-helpers/pull/149)).
-- `DeviceCodeAuthorization` ([#140](https://github.com/demoray/azure-identity-helpers/pull/140)) and `DeviceCodeErrorResponse`
+- `DeviceCodeAuthorization` ([#140](https://github.com/demoray/azure-identity-helpers/pull/140)) and `OAuthErrorResponse`
   ([#142](https://github.com/demoray/azure-identity-helpers/pull/142)) field visibility tightened: all data is private with
   accessors.
+- `OAuthErrorResponse::Display` surfaces `error_uri` when present
+  ([#142](https://github.com/demoray/azure-identity-helpers/pull/142)).
 - `DeviceCodePhaseOneResponse.interval` is typed `u64` ([#143](https://github.com/demoray/azure-identity-helpers/pull/143)).
 - `ChainedTokenCredentialOptions` derives `Clone` and `Copy` ([#132](https://github.com/demoray/azure-identity-helpers/pull/132)).
-- `device_code` re-exports `DeviceCodeAuthorization` and
-  `DeviceCodeErrorResponse` explicitly ([#150](https://github.com/demoray/azure-identity-helpers/pull/150)).
-- `DeviceCodeErrorResponse::Display` surfaces `error_uri` when present
-  ([#142](https://github.com/demoray/azure-identity-helpers/pull/142)).
+- `device_code` re-exports `DeviceCodeAuthorization` explicitly (was a
+  glob re-export) ([#150](https://github.com/demoray/azure-identity-helpers/pull/150)).
+- The structured OAuth error type moved from
+  `device_code::DeviceCodeErrorResponse` to `oauth_error::OAuthErrorResponse`
+  ([#161](https://github.com/demoray/azure-identity-helpers/pull/161)). The old path is preserved as a `#[deprecated]` type alias.
 - `devicecode_credentials` module renamed to `device_code_credential`
   ([#152](https://github.com/demoray/azure-identity-helpers/pull/152)).
 - `cache` module is now `pub(crate)` ([#151](https://github.com/demoray/azure-identity-helpers/pull/151)).
@@ -80,6 +105,14 @@ and **Removed** sections.
 - `add_source` and `new` on `ChainedTokenCredential` document the
   ownership requirement (must add sources before sharing the `Arc`)
   ([#139](https://github.com/demoray/azure-identity-helpers/pull/139)).
+
+### Deprecated
+
+- `create_default_credential()` free function — use
+  `DefaultAzureCredential::new()` directly; its `Arc<DefaultAzureCredential>`
+  return coerces to `Arc<dyn TokenCredential>` at the use site ([#155](https://github.com/demoray/azure-identity-helpers/pull/155)).
+- `device_code::DeviceCodeErrorResponse` type alias — use
+  `oauth_error::OAuthErrorResponse` directly ([#161](https://github.com/demoray/azure-identity-helpers/pull/161)).
 
 ### Fixed
 
@@ -91,17 +124,20 @@ and **Removed** sections.
   and HTTP pooling — especially harmful across the device-code polling
   loop. A single pipeline is now created per `DeviceCodeCredential` and
   threaded through ([#125](https://github.com/demoray/azure-identity-helpers/pull/125)).
+- `refresh_token::exchange` now passes `skip_checks: true` to the
+  pipeline so 4xx responses reach the OAuth error-body parser instead
+  of being collapsed into opaque transport errors ([#156](https://github.com/demoray/azure-identity-helpers/pull/156)).
 - `AzureauthCliCredential` previously shelled out a `which`/`where`
   subprocess on every `get_token` call to locate the azureauth binary;
   the result is now cached and discovered at most once per credential
   lifetime ([#134](https://github.com/demoray/azure-identity-helpers/pull/134)).
 - `AzureauthCliCredential` preserves the underlying `io::Error` when the
   azureauth subprocess fails for reasons other than `NotFound` ([#121](https://github.com/demoray/azure-identity-helpers/pull/121)).
-- `start()`'s phase-one error path wraps the parsed
-  `DeviceCodeErrorResponse` via `Error::with_error` so the outer message
+- `device_code::start()`'s phase-one error path wraps the parsed
+  `OAuthErrorResponse` via `Error::with_error` so the outer message
   retains the endpoint status while the parsed AAD error is the source
   ([#141](https://github.com/demoray/azure-identity-helpers/pull/141)).
-- `DeviceCodeErrorResponse` tolerates missing `error_description` and
+- `OAuthErrorResponse` tolerates missing `error_description` and
   `error_uri` (both OPTIONAL per RFC 6749 §5.2) — without this the
   polling loop could fail to recognize an `authorization_pending`
   response with only `error` set ([#142](https://github.com/demoray/azure-identity-helpers/pull/142)).
