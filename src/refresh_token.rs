@@ -10,11 +10,14 @@ use azure_core::{
         Context, Method, Pipeline, Request, Url,
         headers::{self, content_type},
     },
+    json::from_json,
 };
 use serde::Deserialize;
 use std::time::Duration;
 use time::OffsetDateTime;
 use url::form_urlencoded;
+
+use crate::device_code::DeviceCodeErrorResponse;
 
 /// Exchange a refresh token for a new access token and refresh token.
 ///
@@ -66,12 +69,27 @@ pub async fn exchange(
             Error::with_error(ErrorKind::Credential, e, "parsing refresh token response")
         })
     } else {
-        Err(Error::with_message(
-            ErrorKind::Credential,
-            format!(
-                "the request failed: {:?}",
-                result.into_body().into_string()?
-            ),
+        let body = result.into_body().into_string()?;
+        // The AAD token endpoint returns the same OAuth-shaped error body
+        // for refresh-token failures that the device-code flow already
+        // parses via DeviceCodeErrorResponse (RFC 6749 §5.2). Wrap that as
+        // the source of the returned error so callers see the structured
+        // AAD error / description / uri; fall back to embedding the raw
+        // body only when the response doesn't parse as the expected shape.
+        Err(from_json::<_, DeviceCodeErrorResponse>(&body).map_or_else(
+            |_| {
+                Error::with_message(
+                    ErrorKind::Credential,
+                    format!("refresh token endpoint returned status {status}: {body}"),
+                )
+            },
+            |parsed| {
+                Error::with_error(
+                    ErrorKind::Credential,
+                    parsed,
+                    format!("refresh token endpoint returned status {status}"),
+                )
+            },
         ))
     }
 }
