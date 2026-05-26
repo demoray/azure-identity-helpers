@@ -165,11 +165,6 @@ and **Removed** sections.
 
 ## [0.0.14] - 2026-03-11
 
-First tagged release in the public history (older `0.0.x` releases predate
-the changelog). The crate began as a place to keep helper credentials that
-either weren't available in the official `azure_identity` crate or had
-been removed across its breaking releases.
-
 ### Added
 
 - `AzureauthCliCredential`, wrapping the [AzureAuth
