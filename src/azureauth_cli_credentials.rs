@@ -62,6 +62,17 @@ pub enum AzureauthCliMode {
     Web,
 }
 
+/// Optional configuration for [`AzureauthCliCredential`].
+#[derive(Debug, Default)]
+#[non_exhaustive]
+pub struct AzureauthCliCredentialOptions {
+    /// Authentication modes to pass to the azureauth CLI via `--mode`.
+    /// Empty means the CLI picks its own default.
+    pub modes: Vec<AzureauthCliMode>,
+    /// Optional prompt hint forwarded to the CLI via `--prompt-hint`.
+    pub prompt_hint: Option<String>,
+}
+
 #[derive(Debug)]
 /// Enables authentication to Azure Active Directory using Azure CLI to obtain an access token.
 pub struct AzureauthCliCredential {
@@ -76,41 +87,25 @@ pub struct AzureauthCliCredential {
 
 impl AzureauthCliCredential {
     /// Create a new `AzureauthCliCredential`
-    pub fn new<T, C>(tenant_id: T, client_id: C) -> azure_core::Result<Arc<Self>>
+    pub fn new<T, C>(
+        tenant_id: T,
+        client_id: C,
+        options: Option<AzureauthCliCredentialOptions>,
+    ) -> azure_core::Result<Arc<Self>>
     where
         T: Into<String>,
         C: Into<String>,
     {
+        let options = options.unwrap_or_default();
         Ok(Arc::new(Self {
             tenant_id: tenant_id.into(),
             client_id: client_id.into(),
-            modes: Vec::new(),
-            prompt_hint: None,
+            modes: options.modes,
+            prompt_hint: options.prompt_hint,
             cache: TokenCache::new(),
             executor: new_executor(),
             cmd_name: OnceCell::new(),
         }))
-    }
-
-    #[must_use]
-    pub fn add_mode(mut self, mode: AzureauthCliMode) -> Self {
-        self.modes.push(mode);
-        self
-    }
-
-    #[must_use]
-    pub fn with_modes(mut self, modes: Vec<AzureauthCliMode>) -> Self {
-        self.modes = modes;
-        self
-    }
-
-    #[must_use]
-    pub fn with_prompt_hint<S>(mut self, hint: S) -> Self
-    where
-        S: Into<String>,
-    {
-        self.prompt_hint = Some(hint.into());
-        self
     }
 
     async fn locate_azureauth(&self) -> azure_core::Result<&'static OsStr> {
