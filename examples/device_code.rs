@@ -37,9 +37,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
 
-    let tenant_id = env::var("AZURE_TENANT_ID").unwrap_or_else(|_| "common".to_string());
-    let client_id = env::var("AZURE_CLIENT_ID").unwrap_or_else(|_| AZURE_CLI_CLIENT_ID.to_string());
-    let scope = env::var("AZURE_SCOPE").unwrap_or_else(|_| DEFAULT_SCOPE.to_string());
+    let tenant_id = env::var("AZURE_TENANT_ID").unwrap_or_else(|_| "common".to_owned());
+    let client_id = env::var("AZURE_CLIENT_ID").unwrap_or_else(|_| AZURE_CLI_CLIENT_ID.to_owned());
+    let scope = env::var("AZURE_SCOPE").unwrap_or_else(|_| DEFAULT_SCOPE.to_owned());
 
     info!(%tenant_id, %client_id, %scope, "starting device code flow");
 
