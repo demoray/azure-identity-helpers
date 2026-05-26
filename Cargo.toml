@@ -10,7 +10,7 @@ license = "MIT"
 name = "azure-identity-helpers"
 repository = "https://github.com/demoray/azure-identity-helpers"
 rust-version = "1.91"
-version = "0.1.0"
+version = "0.2.0"
 
 [dependencies]
 async-lock = { version = "3.4", default-features = false }
