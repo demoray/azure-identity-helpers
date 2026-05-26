@@ -11,6 +11,8 @@ and **Removed** sections.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-26
+
 ### Added
 
 - `DeviceCodeCredentialOptions` carrying an async `message_handler` callback
