@@ -39,6 +39,8 @@ style = { level = "deny", priority = -1 }
 suspicious = { level = "deny", priority = -1 }
 
 same_name_method = "deny"
+allow_attributes = "deny"
+allow_attributes_without_reason = "deny"
 print_stderr = "deny"
 str_to_string = "deny"
 unseparated_literal_suffix = "deny"
