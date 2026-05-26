@@ -29,7 +29,7 @@ mod unix_date_string {
         OffsetDateTime::from_unix_timestamp(as_i64).map_err(|e| {
             Error::with_message(
                 ErrorKind::DataConversion,
-                format!("unable to parse expiration_date '{s}': {e}"),
+                format!("expiration_date '{s}' is not a valid unix timestamp ({as_i64}): {e}"),
             )
         })
     }
