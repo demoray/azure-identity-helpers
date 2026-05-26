@@ -87,7 +87,9 @@ where
     D: serde::Deserializer<'de>,
 {
     let raw: String = serde::Deserialize::deserialize(deserializer)?;
-    Ok(raw.split(' ').map(ToOwned::to_owned).collect())
+    // OAuth scope is a space-separated list; use split_whitespace so leading,
+    // trailing, or repeated separators never produce empty scope entries.
+    Ok(raw.split_whitespace().map(ToOwned::to_owned).collect())
 }
 
 impl DeviceCodeAuthorization {
@@ -201,6 +203,22 @@ mod tests {
             auth.scopes(),
             ["https://example/.default", "offline_access", "openid"],
         );
+        Ok(())
+    }
+
+    #[test]
+    fn authorization_scope_split_ignores_extra_whitespace() -> azure_core::Result<()> {
+        // Real-world wire data sometimes has leading/trailing spaces or
+        // doubled separators; split_whitespace must skip them so callers
+        // never see empty scope entries.
+        let body = r#"{
+            "token_type": "Bearer",
+            "scope": "  one  two  three  ",
+            "expires_in": 3600,
+            "access_token": "a"
+        }"#;
+        let auth: DeviceCodeAuthorization = azure_core::json::from_json(body)?;
+        assert_eq!(auth.scopes(), ["one", "two", "three"]);
         Ok(())
     }
 }
