@@ -245,7 +245,7 @@ mod tests {
             self.calls.fetch_add(1, Ordering::SeqCst);
             if self.succeed {
                 Ok(AccessToken {
-                    token: Secret::new(self.name.to_string()),
+                    token: Secret::new(self.name.to_owned()),
                     expires_on: OffsetDateTime::now_utc() + Duration::from_hours(1),
                 })
             } else {

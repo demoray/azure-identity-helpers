@@ -367,7 +367,7 @@ mod tests {
             "client",
             Some(AzureauthCliCredentialOptions {
                 modes: vec![AzureauthCliMode::All, AzureauthCliMode::Web],
-                prompt_hint: Some("hello-prompt".to_string()),
+                prompt_hint: Some("hello-prompt".to_owned()),
             }),
             executor.clone(),
         );
