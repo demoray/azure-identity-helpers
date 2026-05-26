@@ -7,14 +7,17 @@ use azure_core::{
     credentials::Secret,
     error::{Error, ErrorKind},
     http::{
-        Context, Method, Pipeline, Request, Url,
+        Context, Method, Pipeline, PipelineSendOptions, Request, Url,
         headers::{self, content_type},
     },
+    json::from_json,
 };
 use serde::Deserialize;
 use std::time::Duration;
 use time::OffsetDateTime;
 use url::form_urlencoded;
+
+use crate::device_code::DeviceCodeErrorResponse;
 
 /// Exchange a refresh token for a new access token and refresh token.
 ///
@@ -59,19 +62,47 @@ pub async fn exchange(
     );
     req.set_body(encoded);
 
-    let result = pipeline.send(&ctx, &mut req, None).await?;
+    // The AAD token endpoint signals refresh-token failures via 4xx
+    // responses with a structured OAuth error body. Skip the pipeline's
+    // automatic success check so we can inspect those bodies ourselves
+    // instead of having them turned into opaque transport errors.
+    let result = pipeline
+        .send(
+            &ctx,
+            &mut req,
+            Some(PipelineSendOptions {
+                skip_checks: true,
+                ..PipelineSendOptions::default()
+            }),
+        )
+        .await?;
     let status = result.status();
     if status.is_success() {
         result.into_body().json().map_err(|e| {
             Error::with_error(ErrorKind::Credential, e, "parsing refresh token response")
         })
     } else {
-        Err(Error::with_message(
-            ErrorKind::Credential,
-            format!(
-                "the request failed: {:?}",
-                result.into_body().into_string()?
-            ),
+        let body = result.into_body().into_string()?;
+        // The AAD token endpoint returns the same OAuth-shaped error body
+        // for refresh-token failures that the device-code flow already
+        // parses via DeviceCodeErrorResponse (RFC 6749 §5.2). Wrap that as
+        // the source of the returned error so callers see the structured
+        // AAD error / description / uri; fall back to embedding the raw
+        // body only when the response doesn't parse as the expected shape.
+        Err(from_json::<_, DeviceCodeErrorResponse>(&body).map_or_else(
+            |_| {
+                Error::with_message(
+                    ErrorKind::Credential,
+                    format!("refresh token endpoint returned status {status}: {body}"),
+                )
+            },
+            |parsed| {
+                Error::with_error(
+                    ErrorKind::Credential,
+                    parsed,
+                    format!("refresh token endpoint returned status {status}"),
+                )
+            },
         ))
     }
 }
@@ -187,6 +218,92 @@ mod tests {
         assert_eq!(
             first, second,
             "expires_on must be anchored at deserialize time, not drift with wall clock",
+        );
+        Ok(())
+    }
+
+    #[derive(Debug)]
+    struct CannedResponsePolicy {
+        status: azure_core::http::StatusCode,
+        body: &'static str,
+    }
+
+    #[async_trait::async_trait]
+    impl azure_core::http::policies::Policy for CannedResponsePolicy {
+        async fn send(
+            &self,
+            _ctx: &azure_core::http::Context,
+            _request: &mut azure_core::http::Request,
+            _next: &[std::sync::Arc<dyn azure_core::http::policies::Policy>],
+        ) -> azure_core::http::policies::PolicyResult {
+            use futures::FutureExt as _;
+            async move {
+                Ok(azure_core::http::AsyncRawResponse::from_bytes(
+                    self.status,
+                    azure_core::http::headers::Headers::new(),
+                    azure_core::Bytes::from_static(self.body.as_bytes()),
+                ))
+            }
+            .boxed()
+            .await
+        }
+    }
+
+    #[tokio::test]
+    async fn non_success_response_wraps_structured_oauth_error() -> azure_core::Result<()> {
+        use azure_core::http::{StatusCode, policies::Policy};
+        use std::error::Error as _;
+        use std::sync::Arc;
+
+        let policy: Arc<dyn Policy> = Arc::new(CannedResponsePolicy {
+            status: StatusCode::BadRequest,
+            body: r#"{"error":"invalid_grant","error_description":"AADSTS70008: refresh token expired","error_uri":"https://login.microsoftonline.com/error?code=70008"}"#,
+        });
+        let pipeline = Pipeline::new(
+            None,
+            None,
+            ClientOptions::default(),
+            vec![policy],
+            vec![],
+            None,
+        );
+
+        let result = exchange(
+            &pipeline,
+            "tenant",
+            "client",
+            None,
+            &Secret::new("refresh-token"),
+        )
+        .await;
+        assert!(
+            result.is_err(),
+            "expected error from non-success refresh-token response",
+        );
+        let Err(err) = result else {
+            return Ok(());
+        };
+
+        // Outer message keeps the endpoint context.
+        let outer = err.to_string();
+        assert!(
+            outer.contains("refresh token endpoint returned status"),
+            "missing endpoint context in: {outer}",
+        );
+        assert!(outer.contains("400"), "missing status code in: {outer}");
+
+        // The structured OAuth error is the source of the returned Error.
+        // Fold "source exists" and "source has expected content" into one
+        // assertion path so we don't have to panic-unwrap: an empty
+        // source_text fails both content asserts with a clear message.
+        let source_text = err.source().map(ToString::to_string).unwrap_or_default();
+        assert!(
+            source_text.contains("invalid_grant"),
+            "missing oauth error name in source (or no source attached): {source_text}",
+        );
+        assert!(
+            source_text.contains("AADSTS70008"),
+            "missing oauth error description in source: {source_text}",
         );
         Ok(())
     }
