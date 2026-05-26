@@ -342,12 +342,8 @@ mod tests {
     #[tokio::test]
     async fn azureauth_binary_lookup_is_cached_across_calls() {
         let executor = Arc::new(CountingExecutor::default());
-        let credential = AzureauthCliCredential::new_with_executor(
-            "tenant",
-            "client",
-            None,
-            executor.clone() as Arc<dyn Executor>,
-        );
+        let credential =
+            AzureauthCliCredential::new_with_executor("tenant", "client", None, executor.clone());
 
         // Two get_token calls with different scopes so the TokenCache
         // doesn't short-circuit the second one.
@@ -376,7 +372,7 @@ mod tests {
                 modes: vec![AzureauthCliMode::All, AzureauthCliMode::Web],
                 prompt_hint: Some("hello-prompt".to_string()),
             }),
-            executor.clone() as Arc<dyn Executor>,
+            executor.clone(),
         );
 
         let _ = credential.get_token(&["scope-a"], None).await;
