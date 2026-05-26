@@ -37,6 +37,36 @@ impl ChainedTokenCredential {
     /// cannot be added — [`Self::add_source`] takes `&mut self`, which is
     /// only reachable while the value is uniquely owned (directly or via
     /// [`Arc::get_mut`]).
+    ///
+    /// # Examples
+    ///
+    /// Build a two-source chain — Azure CLI first, then an
+    /// environment-backed credential — and use it as a `dyn TokenCredential`:
+    ///
+    /// ```no_run
+    /// # async fn example() -> azure_core::Result<()> {
+    /// use std::sync::Arc;
+    /// use azure_core::credentials::TokenCredential;
+    /// use azure_identity::AzureCliCredential;
+    /// use azure_identity_helpers::{
+    ///     chained_token_credential::ChainedTokenCredential,
+    ///     environment_credential::EnvironmentCredential,
+    /// };
+    ///
+    /// let mut chain = ChainedTokenCredential::new(None);
+    /// chain.add_source(AzureCliCredential::new(None)?);
+    /// if let Ok(env_cred) = EnvironmentCredential::new(None) {
+    ///     chain.add_source(env_cred);
+    /// }
+    /// let credential: Arc<dyn TokenCredential> = Arc::new(chain);
+    ///
+    /// let token = credential
+    ///     .get_token(&["https://management.core.windows.net/.default"], None)
+    ///     .await?;
+    /// # let _ = token;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn new(options: Option<ChainedTokenCredentialOptions>) -> Self {
         Self {
             options: options.unwrap_or_default(),
