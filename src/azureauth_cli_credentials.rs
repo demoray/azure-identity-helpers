@@ -56,10 +56,32 @@ struct CliTokenResponse {
 /// devicecode should use `azure_identity::device_code_flow`
 #[derive(Debug, Clone, Copy)]
 pub enum AzureauthCliMode {
+    /// All available modes.
     All,
+    /// Windows-only. Silently dropped on non-Windows: the `azureauth` POSIX
+    /// build does not implement this mode, only `azureauth.exe` does.
     IntegratedWindowsAuth,
+    /// Windows-only. Silently dropped on non-Windows for the same reason as
+    /// [`Self::IntegratedWindowsAuth`].
     Broker,
+    /// Browser-based web flow.
     Web,
+}
+
+/// Optional configuration for [`AzureauthCliCredential`].
+#[derive(Debug, Default)]
+#[non_exhaustive]
+pub struct AzureauthCliCredentialOptions {
+    /// Authentication modes to pass to the azureauth CLI via `--mode`.
+    /// Empty means the CLI picks its own default.
+    ///
+    /// Note: [`AzureauthCliMode::IntegratedWindowsAuth`] and
+    /// [`AzureauthCliMode::Broker`] are only forwarded when the located
+    /// executable is `azureauth.exe`; they're silently dropped on POSIX
+    /// platforms because the POSIX azureauth build doesn't implement them.
+    pub modes: Vec<AzureauthCliMode>,
+    /// Optional prompt hint forwarded to the CLI via `--prompt-hint`.
+    pub prompt_hint: Option<String>,
 }
 
 #[derive(Debug)]
@@ -75,42 +97,32 @@ pub struct AzureauthCliCredential {
 }
 
 impl AzureauthCliCredential {
-    /// Create a new `AzureauthCliCredential`
-    pub fn new<T, C>(tenant_id: T, client_id: C) -> azure_core::Result<Arc<Self>>
+    /// Create a new `AzureauthCliCredential`.
+    ///
+    /// `options` configures the auth modes and prompt hint forwarded to the
+    /// azureauth CLI. Pass `None` to accept the defaults (no `--mode`
+    /// flags, no `--prompt-hint`); see [`AzureauthCliCredentialOptions`] for
+    /// the available knobs.
+    #[must_use]
+    pub fn new<T, C>(
+        tenant_id: T,
+        client_id: C,
+        options: Option<AzureauthCliCredentialOptions>,
+    ) -> Arc<Self>
     where
         T: Into<String>,
         C: Into<String>,
     {
-        Ok(Arc::new(Self {
+        let options = options.unwrap_or_default();
+        Arc::new(Self {
             tenant_id: tenant_id.into(),
             client_id: client_id.into(),
-            modes: Vec::new(),
-            prompt_hint: None,
+            modes: options.modes,
+            prompt_hint: options.prompt_hint,
             cache: TokenCache::new(),
             executor: new_executor(),
             cmd_name: OnceCell::new(),
-        }))
-    }
-
-    #[must_use]
-    pub fn add_mode(mut self, mode: AzureauthCliMode) -> Self {
-        self.modes.push(mode);
-        self
-    }
-
-    #[must_use]
-    pub fn with_modes(mut self, modes: Vec<AzureauthCliMode>) -> Self {
-        self.modes = modes;
-        self
-    }
-
-    #[must_use]
-    pub fn with_prompt_hint<S>(mut self, hint: S) -> Self
-    where
-        S: Into<String>,
-    {
-        self.prompt_hint = Some(hint.into());
-        self
+        })
     }
 
     async fn locate_azureauth(&self) -> azure_core::Result<&'static OsStr> {
@@ -238,13 +250,15 @@ mod tests {
         fn new_with_executor(
             tenant_id: impl Into<String>,
             client_id: impl Into<String>,
+            options: Option<AzureauthCliCredentialOptions>,
             executor: Arc<dyn Executor>,
         ) -> Arc<Self> {
+            let options = options.unwrap_or_default();
             Arc::new(Self {
                 tenant_id: tenant_id.into(),
                 client_id: client_id.into(),
-                modes: Vec::new(),
-                prompt_hint: None,
+                modes: options.modes,
+                prompt_hint: options.prompt_hint,
                 cache: TokenCache::new(),
                 executor,
                 cmd_name: OnceCell::new(),
@@ -273,20 +287,26 @@ mod tests {
     struct CountingExecutor {
         which_calls: AtomicUsize,
         azureauth_calls: AtomicUsize,
+        // Captures the args passed to each `aad` invocation so tests can
+        // assert that options.modes / options.prompt_hint actually reach
+        // the command line.
+        last_azureauth_args: std::sync::Mutex<Vec<std::ffi::OsString>>,
     }
 
     #[async_trait::async_trait]
     impl Executor for CountingExecutor {
-        async fn run(&self, program: &OsStr, _args: &[&OsStr]) -> std::io::Result<Output> {
+        async fn run(&self, program: &OsStr, args: &[&OsStr]) -> std::io::Result<Output> {
             if program == OsStr::new("which") || program == OsStr::new("where") {
                 self.which_calls.fetch_add(1, Ordering::SeqCst);
                 Ok(success_output())
             } else {
+                self.azureauth_calls.fetch_add(1, Ordering::SeqCst);
+                if let Ok(mut captured) = self.last_azureauth_args.lock() {
+                    *captured = args.iter().map(|a| (*a).to_os_string()).collect();
+                }
                 // Pretend the azureauth invocation itself fails so the
                 // credential surfaces an error rather than trying to parse
-                // an empty JSON body; the test only cares about how many
-                // times we ran `which` / `where`.
-                self.azureauth_calls.fetch_add(1, Ordering::SeqCst);
+                // an empty JSON body.
                 Err(std::io::Error::other("test"))
             }
         }
@@ -319,6 +339,7 @@ mod tests {
         let credential = AzureauthCliCredential::new_with_executor(
             "tenant",
             "client",
+            None,
             executor.clone() as Arc<dyn Executor>,
         );
 
@@ -336,6 +357,61 @@ mod tests {
             executor.azureauth_calls.load(Ordering::SeqCst),
             2,
             "every get_token call should still reach the azureauth invocation",
+        );
+    }
+
+    #[tokio::test]
+    async fn options_modes_and_prompt_hint_reach_the_cli() {
+        let executor = Arc::new(CountingExecutor::default());
+        let credential = AzureauthCliCredential::new_with_executor(
+            "tenant",
+            "client",
+            Some(AzureauthCliCredentialOptions {
+                modes: vec![AzureauthCliMode::All, AzureauthCliMode::Web],
+                prompt_hint: Some("hello-prompt".to_string()),
+            }),
+            executor.clone() as Arc<dyn Executor>,
+        );
+
+        let _ = credential.get_token(&["scope-a"], None).await;
+
+        let args = executor
+            .last_azureauth_args
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let args_str: Vec<String> = args
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+
+        // `--prompt-hint <value>` and `--mode <value>` pairs must appear on
+        // the command line. Walk the args as windows of 2 so we never index
+        // past the end.
+        let pairs: Vec<(&str, &str)> = args_str
+            .windows(2)
+            .filter_map(|w| {
+                let (flag, value) = (w.first()?.as_str(), w.get(1)?.as_str());
+                Some((flag, value))
+            })
+            .collect();
+
+        let prompt_hints: Vec<&str> = pairs
+            .iter()
+            .filter_map(|(flag, value)| (*flag == "--prompt-hint").then_some(*value))
+            .collect();
+        assert_eq!(prompt_hints, vec!["hello-prompt"], "args were {args_str:?}");
+
+        let mode_values: Vec<&str> = pairs
+            .iter()
+            .filter_map(|(flag, value)| (*flag == "--mode").then_some(*value))
+            .collect();
+        assert!(
+            mode_values.contains(&"all"),
+            "missing --mode all: {args_str:?}",
+        );
+        assert!(
+            mode_values.contains(&"web"),
+            "missing --mode web: {args_str:?}",
         );
     }
 }
