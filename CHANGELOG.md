@@ -137,6 +137,80 @@ under SemVer §4.
 - A `#[allow(dead_code)]` attribute that's no longer needed since the
   fields it covered are now read.
 
-## [0.1.0]
+## [0.1.0] - 2026-05-12
 
-- Initial release.
+### Changed
+
+- Routine dependency refresh.
+
+## [0.0.18] - 2026-05-05
+
+### Fixed
+
+- Device-code polling now honors RFC 8628 §3.5: `authorization_pending`
+  and `slow_down` keep the loop alive (the latter extends the polling
+  interval by 5s), and terminal server errors (e.g. `expired_token`,
+  `access_denied`) are surfaced rather than swallowed.
+
+### Changed
+
+- Routine dependency refresh.
+
+## [0.0.17] - 2026-04-23
+
+### Changed
+
+- Address updated clippy lints.
+- Routine dependency refresh.
+
+## [0.0.16] - 2026-04-09
+
+### Changed
+
+- Routine dependency refresh.
+
+## [0.0.15] - 2026-03-19
+
+### Added
+
+- `DefaultAzureCredential` and `EnvironmentCredential`, ported from the
+  pre-1.0 `azure_identity` 0.20.0 shape that newer upstream releases
+  dropped.
+
+## [0.0.14] - 2026-03-11
+
+First tagged release in the public history (older `0.0.x` releases predate
+the changelog). The crate began as a place to keep helper credentials that
+either weren't available in the official `azure_identity` crate or had
+been removed across its breaking releases.
+
+### Added
+
+- `AzureauthCliCredential` — wraps the [AzureAuth
+  CLI](https://github.com/AzureAD/microsoft-authentication-cli) and
+  exposes it as a `TokenCredential`. Includes the `find_azureauth`
+  helper for locating the executable on `PATH`.
+- `DeviceCodeCredential` and the underlying `device_code` flow
+  (`start`, `DeviceCodePhaseOneResponse::stream`, `DeviceCodeAuthorization`,
+  `DeviceCodeErrorResponse`).
+- `refresh_token::exchange` and `RefreshTokenResponse`.
+- `TokenCache` (internal) and `ChainedTokenCredential` for composing
+  multiple credential sources with caching.
+- Lint specification in `Cargo.toml` opting into `pedantic`, `nursery`,
+  `cargo`, `perf`, `style`, `correctness`, `suspicious`, plus
+  `unwrap_used` / `expect_used` / `panic` / `indexing_slicing` at the
+  crate root.
+- HTTP pipeline support for the device-code and refresh-token requests.
+
+### Changed
+
+- `AzureauthCliCredential` aligned to look like other credential
+  providers in the crate.
+- `parking_lot::Mutex` replaced with `async_lock::Mutex` to avoid the
+  extra synchronous dependency in an async-only code path.
+- Dependencies pinned with `default-features = false`; opt-in features
+  enabled explicitly so downstream consumers don't drag in surprise
+  transitive deps.
+- Tracking updates for `azure_identity` / `azure_core` 0.23 → 0.25 →
+  0.29 across the early releases.
+
