@@ -9,6 +9,7 @@ keywords = ["azure"]
 license = "MIT"
 name = "azure-identity-helpers"
 repository = "https://github.com/demoray/azure-identity-helpers"
+rust-version = "1.91"
 version = "0.1.0"
 
 [dependencies]
