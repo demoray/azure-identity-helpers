@@ -319,6 +319,37 @@ pub struct DefaultAzureCredential {
 
 impl DefaultAzureCredential {
     /// Create a `DefaultAzureCredential` with the default chain order.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # async fn example() -> azure_core::Result<()> {
+    /// use azure_core::credentials::TokenCredential;
+    /// use azure_identity_helpers::default_azure_credential::DefaultAzureCredential;
+    ///
+    /// let credential = DefaultAzureCredential::new()?;
+    /// let token = credential
+    ///     .get_token(&["https://management.core.windows.net/.default"], None)
+    ///     .await?;
+    /// println!("token expires on {}", token.expires_on);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// To exclude or reconfigure individual sources, use
+    /// [`Self::builder`]:
+    ///
+    /// ```no_run
+    /// # fn example() -> azure_core::Result<()> {
+    /// use azure_identity_helpers::default_azure_credential::DefaultAzureCredential;
+    ///
+    /// let credential = DefaultAzureCredential::builder()
+    ///     .exclude_managed_identity_credential()
+    ///     .build()?;
+    /// # let _ = credential;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn new() -> azure_core::Result<Arc<Self>> {
         DefaultAzureCredentialBuilder::new().build()
     }
