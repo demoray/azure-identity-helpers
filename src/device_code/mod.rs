@@ -17,7 +17,7 @@ use azure_core::{
     json::from_json,
     sleep::sleep,
 };
-pub use device_code_responses::*;
+pub use device_code_responses::{DeviceCodeAuthorization, DeviceCodeErrorResponse};
 use futures::stream::unfold;
 use serde::Deserialize;
 use std::pin::Pin;
