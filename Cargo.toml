@@ -44,6 +44,7 @@ significant_drop_tightening = "allow"
 multiple_crate_versions = "allow"
 
 [lints.rust]
+trivial_casts = "deny"
 ambiguous_negative_literals = "deny"
 non_snake_case = "deny"
 non_upper_case_globals = "deny"

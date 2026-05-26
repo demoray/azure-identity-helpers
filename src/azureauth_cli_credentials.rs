@@ -343,7 +343,7 @@ mod tests {
             "tenant",
             "client",
             None,
-            executor.clone() as Arc<dyn Executor>,
+            executor.clone(),
         );
 
         // Two get_token calls with different scopes so the TokenCache
@@ -373,7 +373,7 @@ mod tests {
                 modes: vec![AzureauthCliMode::All, AzureauthCliMode::Web],
                 prompt_hint: Some("hello-prompt".to_string()),
             }),
-            executor.clone() as Arc<dyn Executor>,
+            executor.clone(),
         );
 
         let _ = credential.get_token(&["scope-a"], None).await;
