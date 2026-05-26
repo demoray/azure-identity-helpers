@@ -11,24 +11,24 @@ use time::OffsetDateTime;
 use tracing::trace;
 
 #[derive(Debug)]
-pub(crate) struct TokenCache(RwLock<HashMap<BTreeSet<String>, AccessToken>>);
+pub struct TokenCache(RwLock<HashMap<BTreeSet<String>, AccessToken>>);
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) trait MaybeSend: Send {}
+pub trait MaybeSend: Send {}
 #[cfg(not(target_arch = "wasm32"))]
 impl<T: Send> MaybeSend for T {}
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) trait MaybeSend {}
+pub trait MaybeSend {}
 #[cfg(target_arch = "wasm32")]
 impl<T> MaybeSend for T {}
 
 impl TokenCache {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self(RwLock::new(HashMap::new()))
     }
 
-    pub(crate) async fn get_token<'a, 'b, C, F>(
+    pub async fn get_token<'a, 'b, C, F>(
         &self,
         scopes: &'a [&'a str],
         options: Option<TokenRequestOptions<'b>>,
