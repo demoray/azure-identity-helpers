@@ -39,6 +39,7 @@ style = { level = "deny", priority = -1 }
 suspicious = { level = "deny", priority = -1 }
 
 ref_patterns = "deny"
+unseparated_literal_suffix = "deny"
 missing_const_for_fn = "allow"
 missing_errors_doc = "allow"
 module_name_repetitions = "allow"
@@ -46,6 +47,7 @@ significant_drop_tightening = "allow"
 multiple_crate_versions = "allow"
 
 [lints.rust]
+trivial_casts = "deny"
 ambiguous_negative_literals = "deny"
 non_snake_case = "deny"
 non_upper_case_globals = "deny"
