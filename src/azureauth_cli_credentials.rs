@@ -327,7 +327,10 @@ mod tests {
         let response: CliTokenResponse = from_json(src)?;
         assert_eq!(response.access_token.secret(), "security token here");
 
-        #[allow(clippy::expect_used)]
+        #[expect(
+            clippy::expect_used,
+            reason = "test asserts on a hard-coded valid unix timestamp"
+        )]
         let expected =
             OffsetDateTime::from_unix_timestamp(1_700_166_595).expect("known valid date");
 
