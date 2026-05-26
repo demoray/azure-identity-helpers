@@ -275,10 +275,7 @@ mod tests {
         let log = captured.lock().map_err(|_| {
             Error::with_message(ErrorKind::Other, "captured-message log mutex poisoned")
         })?;
-        assert_eq!(
-            *log,
-            vec!["seen:hello".to_owned(), "seen:world".to_owned()]
-        );
+        assert_eq!(*log, vec!["seen:hello".to_owned(), "seen:world".to_owned()]);
         Ok(())
     }
 
