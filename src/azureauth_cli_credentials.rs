@@ -87,17 +87,18 @@ pub struct AzureauthCliCredential {
 
 impl AzureauthCliCredential {
     /// Create a new `AzureauthCliCredential`
+    #[must_use]
     pub fn new<T, C>(
         tenant_id: T,
         client_id: C,
         options: Option<AzureauthCliCredentialOptions>,
-    ) -> azure_core::Result<Arc<Self>>
+    ) -> Arc<Self>
     where
         T: Into<String>,
         C: Into<String>,
     {
         let options = options.unwrap_or_default();
-        Ok(Arc::new(Self {
+        Arc::new(Self {
             tenant_id: tenant_id.into(),
             client_id: client_id.into(),
             modes: options.modes,
@@ -105,7 +106,7 @@ impl AzureauthCliCredential {
             cache: TokenCache::new(),
             executor: new_executor(),
             cmd_name: OnceCell::new(),
-        }))
+        })
     }
 
     async fn locate_azureauth(&self) -> azure_core::Result<&'static OsStr> {
