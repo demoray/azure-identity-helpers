@@ -142,7 +142,10 @@ mod deserialize {
         D: Deserializer<'de>,
     {
         let string: String = serde::Deserialize::deserialize(scope)?;
-        Ok(string.split(' ').map(ToOwned::to_owned).collect())
+        // OAuth scope is a space-separated list; use split_whitespace so
+        // leading, trailing, or repeated separators never produce empty
+        // scope entries.
+        Ok(string.split_whitespace().map(ToOwned::to_owned).collect())
     }
 }
 

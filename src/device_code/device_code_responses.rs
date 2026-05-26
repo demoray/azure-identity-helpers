@@ -60,9 +60,10 @@ impl fmt::Display for DeviceCodeErrorResponse {
 pub struct DeviceCodeAuthorization {
     /// Always `Bearer`.
     token_type: String,
-    /// The scopes the access token is valid for.
-    /// Format: Space separated strings
-    scope: String,
+    /// The scopes the access token is valid for, parsed from the
+    /// space-separated wire format.
+    #[serde(rename = "scope", deserialize_with = "deserialize_scopes")]
+    scopes: Vec<String>,
     /// Number of seconds the included access token is valid for.
     expires_in: u64,
     /// Issued for the scopes that were requested.
@@ -81,16 +82,26 @@ pub struct DeviceCodeAuthorization {
     received_at: OffsetDateTime,
 }
 
+fn deserialize_scopes<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw: String = serde::Deserialize::deserialize(deserializer)?;
+    // OAuth scope is a space-separated list; use split_whitespace so leading,
+    // trailing, or repeated separators never produce empty scope entries.
+    Ok(raw.split_whitespace().map(ToOwned::to_owned).collect())
+}
+
 impl DeviceCodeAuthorization {
     /// The token type. Always `Bearer` for Azure AD.
     #[must_use]
     pub fn token_type(&self) -> &str {
         &self.token_type
     }
-    /// The space-separated list of scopes the access token is valid for.
+    /// The scopes the access token is valid for.
     #[must_use]
-    pub fn scope(&self) -> &str {
-        &self.scope
+    pub fn scopes(&self) -> &[String] {
+        &self.scopes
     }
     /// Number of seconds the access token is valid for at the time the
     /// response was issued.
@@ -176,6 +187,38 @@ mod tests {
         assert!(formatted.contains("invalid_grant"), "{formatted}");
         assert!(formatted.contains("AADSTS70008"), "{formatted}");
         assert!(formatted.contains("error?code=70008"), "{formatted}");
+        Ok(())
+    }
+
+    #[test]
+    fn authorization_splits_space_separated_scopes() -> azure_core::Result<()> {
+        let body = r#"{
+            "token_type": "Bearer",
+            "scope": "https://example/.default offline_access openid",
+            "expires_in": 3600,
+            "access_token": "a"
+        }"#;
+        let auth: DeviceCodeAuthorization = azure_core::json::from_json(body)?;
+        assert_eq!(
+            auth.scopes(),
+            ["https://example/.default", "offline_access", "openid"],
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn authorization_scope_split_ignores_extra_whitespace() -> azure_core::Result<()> {
+        // Real-world wire data sometimes has leading/trailing spaces or
+        // doubled separators; split_whitespace must skip them so callers
+        // never see empty scope entries.
+        let body = r#"{
+            "token_type": "Bearer",
+            "scope": "  one  two  three  ",
+            "expires_in": 3600,
+            "access_token": "a"
+        }"#;
+        let auth: DeviceCodeAuthorization = azure_core::json::from_json(body)?;
+        assert_eq!(auth.scopes(), ["one", "two", "three"]);
         Ok(())
     }
 }
