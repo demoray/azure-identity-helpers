@@ -89,6 +89,8 @@ impl DeviceCodeAuthorization {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use azure_core::json::from_json;
+    use std::thread;
 
     #[test]
     fn expires_on_is_stable_across_calls() -> azure_core::Result<()> {
@@ -98,10 +100,10 @@ mod tests {
             "expires_in": 3600,
             "access_token": "a"
         }"#;
-        let auth: DeviceCodeAuthorization = azure_core::json::from_json(body)?;
+        let auth: DeviceCodeAuthorization = from_json(body)?;
 
         let first = auth.expires_on();
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        thread::sleep(Duration::from_millis(20));
         let second = auth.expires_on();
 
         assert_eq!(
@@ -119,7 +121,7 @@ mod tests {
             "expires_in": 3600,
             "access_token": "a"
         }"#;
-        let auth: DeviceCodeAuthorization = azure_core::json::from_json(body)?;
+        let auth: DeviceCodeAuthorization = from_json(body)?;
         assert_eq!(
             auth.scopes(),
             ["https://example/.default", "offline_access", "openid"],
@@ -138,7 +140,7 @@ mod tests {
             "expires_in": 3600,
             "access_token": "a"
         }"#;
-        let auth: DeviceCodeAuthorization = azure_core::json::from_json(body)?;
+        let auth: DeviceCodeAuthorization = from_json(body)?;
         assert_eq!(auth.scopes(), ["one", "two", "three"]);
         Ok(())
     }

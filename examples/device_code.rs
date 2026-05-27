@@ -19,7 +19,7 @@
 
 use azure_core::credentials::TokenCredential;
 use azure_identity_helpers::device_code_credential::DeviceCodeCredential;
-use std::env;
+use std::{env, error::Error};
 use tracing::info;
 
 // The Azure CLI's well-known public client id. It works against any tenant
@@ -29,7 +29,7 @@ const AZURE_CLI_CLIENT_ID: &str = "04b07795-8ddb-461a-bbee-02f9e1bf7b46";
 const DEFAULT_SCOPE: &str = "https://management.core.windows.net/.default";
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()

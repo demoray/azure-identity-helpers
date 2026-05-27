@@ -238,6 +238,14 @@ impl TokenCredential for DeviceCodeCredential {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use azure_core::http::{
+        ClientOptions, Context, Request,
+        policies::{Policy, PolicyResult},
+    };
+    use std::sync::{
+        Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
 
     #[cfg(not(target_arch = "wasm32"))]
     fn require_send<T: Send>(_t: T) {}
@@ -252,8 +260,7 @@ mod tests {
 
     #[tokio::test]
     async fn message_handler_receives_emitted_messages() -> azure_core::Result<()> {
-        let captured: Arc<std::sync::Mutex<Vec<String>>> =
-            Arc::new(std::sync::Mutex::new(Vec::new()));
+        let captured: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
         let captured_for_handler = captured.clone();
         let credential = DeviceCodeCredential::new(
             "UNUSED",
@@ -340,18 +347,18 @@ mod tests {
 
     #[derive(Debug)]
     struct RecordingPolicy {
-        hits: Arc<std::sync::atomic::AtomicUsize>,
+        hits: Arc<AtomicUsize>,
     }
 
     #[async_trait::async_trait]
-    impl azure_core::http::policies::Policy for RecordingPolicy {
+    impl Policy for RecordingPolicy {
         async fn send(
             &self,
-            _ctx: &azure_core::http::Context,
-            _request: &mut azure_core::http::Request,
-            _next: &[Arc<dyn azure_core::http::policies::Policy>],
-        ) -> azure_core::http::policies::PolicyResult {
-            self.hits.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            _ctx: &Context,
+            _request: &mut Request,
+            _next: &[Arc<dyn Policy>],
+        ) -> PolicyResult {
+            self.hits.fetch_add(1, Ordering::SeqCst);
             // Short-circuit the pipeline so no real HTTP traffic leaves the
             // process. The credential will surface this error to its caller;
             // we only care that the policy was reached.
@@ -367,13 +374,12 @@ mod tests {
         // Build a pipeline whose first per-call policy records every send
         // and short-circuits. If the credential were ignoring our pipeline
         // and using its own, the recorder would never fire.
-        let hits = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-        let recorder: Arc<dyn azure_core::http::policies::Policy> =
-            Arc::new(RecordingPolicy { hits: hits.clone() });
-        let pipeline = azure_core::http::Pipeline::new(
+        let hits = Arc::new(AtomicUsize::new(0));
+        let recorder: Arc<dyn Policy> = Arc::new(RecordingPolicy { hits: hits.clone() });
+        let pipeline = Pipeline::new(
             None,
             None,
-            azure_core::http::ClientOptions::default(),
+            ClientOptions::default(),
             vec![recorder],
             vec![],
             None,
@@ -392,7 +398,7 @@ mod tests {
         // call necessarily fails; the test only inspects the hit counter.
         let _ = credential.get_token(&["scope"], None).await;
         assert!(
-            hits.load(std::sync::atomic::Ordering::SeqCst) >= 1,
+            hits.load(Ordering::SeqCst) >= 1,
             "the caller-supplied pipeline was never invoked",
         );
         Ok(())

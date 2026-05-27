@@ -24,13 +24,13 @@ use azure_identity::AzureCliCredential;
 use azure_identity_helpers::{
     chained_token_credential::ChainedTokenCredential, environment_credential::EnvironmentCredential,
 };
-use std::env;
+use std::{env, error::Error, sync::Arc};
 use tracing::info;
 
 const DEFAULT_SCOPE: &str = "https://management.core.windows.net/.default";
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Ok(env_cred) = EnvironmentCredential::new(None) {
         chain.add_source(env_cred);
     }
-    let credential = std::sync::Arc::new(chain);
+    let credential = Arc::new(chain);
 
     info!(%scope, "acquiring token via custom ChainedTokenCredential");
 

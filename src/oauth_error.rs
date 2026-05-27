@@ -8,7 +8,7 @@
 //! `device_code` nor `refresh_token` owns it; both depend on it instead.
 
 use serde::Deserialize;
-use std::fmt;
+use std::{error::Error, fmt};
 
 /// OAuth 2.0 error response body, per
 /// [RFC 6749 §5.2](https://datatracker.ietf.org/doc/html/rfc6749#section-5.2).
@@ -47,7 +47,7 @@ impl OAuthErrorResponse {
     }
 }
 
-impl std::error::Error for OAuthErrorResponse {}
+impl Error for OAuthErrorResponse {}
 
 impl fmt::Display for OAuthErrorResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -65,6 +65,7 @@ impl fmt::Display for OAuthErrorResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use azure_core::json::from_json;
 
     #[test]
     fn parses_when_optional_fields_are_missing() -> azure_core::Result<()> {
@@ -72,7 +73,7 @@ mod tests {
         // A body that includes only `error` must still parse so the
         // polling loop can act on `authorization_pending` / `slow_down`.
         let body = r#"{ "error": "authorization_pending" }"#;
-        let parsed: OAuthErrorResponse = azure_core::json::from_json(body)?;
+        let parsed: OAuthErrorResponse = from_json(body)?;
 
         assert_eq!(parsed.error(), "authorization_pending");
         assert_eq!(parsed.error_description(), "");
@@ -88,7 +89,7 @@ mod tests {
             "error_description": "AADSTS70008",
             "error_uri": "https://login.microsoftonline.com/error?code=70008"
         }"#;
-        let parsed: OAuthErrorResponse = azure_core::json::from_json(body)?;
+        let parsed: OAuthErrorResponse = from_json(body)?;
         let formatted = parsed.to_string();
         assert!(formatted.contains("invalid_grant"), "{formatted}");
         assert!(formatted.contains("AADSTS70008"), "{formatted}");

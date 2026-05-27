@@ -10,12 +10,12 @@ use azure_core::{
 };
 use azure_identity::{Executor, new_executor};
 use serde::Deserialize;
-use std::{ffi::OsStr, str, sync::Arc};
+use std::{ffi::OsStr, io, str, sync::Arc};
 use time::OffsetDateTime;
 
 mod unix_date_string {
     use azure_core::error::{Error, ErrorKind};
-    use serde::{Deserialize, Deserializer};
+    use serde::{Deserialize, Deserializer, de};
     use time::OffsetDateTime;
 
     fn parse(s: &str) -> azure_core::Result<OffsetDateTime> {
@@ -39,7 +39,7 @@ mod unix_date_string {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        parse(&s).map_err(serde::de::Error::custom)
+        parse(&s).map_err(de::Error::custom)
     }
 }
 
@@ -181,7 +181,7 @@ impl AzureauthCliCredential {
         let result = self.executor.run(cmd_name, &cmd).await;
 
         let output = result.map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => {
+            io::ErrorKind::NotFound => {
                 Error::with_message(ErrorKind::Other, "azureauth CLI not installed")
             }
             _ => Error::with_error(ErrorKind::Other, e, "running azureauth CLI"),
@@ -243,9 +243,17 @@ pub(crate) async fn find_azureauth(executor: &dyn Executor) -> Option<&'static O
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    use std::os::unix::process::ExitStatusExt;
+    #[cfg(windows)]
+    use std::os::windows::process::ExitStatusExt;
     use std::{
+        ffi::OsString,
         process::Output,
-        sync::atomic::{AtomicUsize, Ordering},
+        sync::{
+            Mutex, PoisonError,
+            atomic::{AtomicUsize, Ordering},
+        },
     };
 
     #[cfg(test)]
@@ -271,16 +279,7 @@ mod tests {
 
     fn success_output() -> Output {
         Output {
-            status: {
-                #[cfg(windows)]
-                {
-                    std::os::windows::process::ExitStatusExt::from_raw(0)
-                }
-                #[cfg(unix)]
-                {
-                    std::os::unix::process::ExitStatusExt::from_raw(0)
-                }
-            },
+            status: ExitStatusExt::from_raw(0),
             stdout: Vec::new(),
             stderr: Vec::new(),
         }
@@ -293,12 +292,12 @@ mod tests {
         // Captures the args passed to each `aad` invocation so tests can
         // assert that options.modes / options.prompt_hint actually reach
         // the command line.
-        last_azureauth_args: std::sync::Mutex<Vec<std::ffi::OsString>>,
+        last_azureauth_args: Mutex<Vec<OsString>>,
     }
 
     #[async_trait::async_trait]
     impl Executor for CountingExecutor {
-        async fn run(&self, program: &OsStr, args: &[&OsStr]) -> std::io::Result<Output> {
+        async fn run(&self, program: &OsStr, args: &[&OsStr]) -> io::Result<Output> {
             if program == OsStr::new("which") || program == OsStr::new("where") {
                 self.which_calls.fetch_add(1, Ordering::SeqCst);
                 Ok(success_output())
@@ -310,7 +309,7 @@ mod tests {
                 // Pretend the azureauth invocation itself fails so the
                 // credential surfaces an error rather than trying to parse
                 // an empty JSON body.
-                Err(std::io::Error::other("test"))
+                Err(io::Error::other("test"))
             }
         }
     }
@@ -380,7 +379,7 @@ mod tests {
         let args = executor
             .last_azureauth_args
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+            .unwrap_or_else(PoisonError::into_inner);
         let args_str: Vec<String> = args
             .iter()
             .map(|a| a.to_string_lossy().into_owned())

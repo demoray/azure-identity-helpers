@@ -19,7 +19,7 @@ use azure_core::{
 };
 pub use device_code_responses::DeviceCodeAuthorization;
 use futures::stream::unfold;
-use serde::Deserialize;
+use serde::{Deserialize, de};
 use std::pin::Pin;
 use time::Duration;
 use url::form_urlencoded;
@@ -132,7 +132,7 @@ where
 {
     let secs = i64::deserialize(deserializer)?;
     let interval = u64::try_from(secs).map_err(|e| {
-        serde::de::Error::custom(format!(
+        de::Error::custom(format!(
             "device code polling interval must be non-negative, got {secs}: {e}"
         ))
     })?;
@@ -303,7 +303,7 @@ mod tests {
             "interval": 5,
             "message": "go enter the code"
         }"#;
-        let parsed: DeviceCodePhaseOneResponse = azure_core::json::from_json(body)?;
+        let parsed: DeviceCodePhaseOneResponse = from_json(body)?;
         assert_eq!(parsed.interval, 5);
         Ok(())
     }
@@ -315,7 +315,7 @@ mod tests {
             "interval": -1,
             "message": "go enter the code"
         }"#;
-        let parsed = azure_core::json::from_json::<&str, DeviceCodePhaseOneResponse>(body);
+        let parsed = from_json::<&str, DeviceCodePhaseOneResponse>(body);
         assert!(
             parsed.is_err(),
             "negative interval must be rejected at deserialize time",
@@ -330,7 +330,7 @@ mod tests {
             "interval": 9223372036854775808,
             "message": "go enter the code"
         }"#;
-        let parsed = azure_core::json::from_json::<&str, DeviceCodePhaseOneResponse>(body);
+        let parsed = from_json::<&str, DeviceCodePhaseOneResponse>(body);
         assert!(
             parsed.is_err(),
             "interval larger than i64::MAX must be rejected at deserialize time",
@@ -346,7 +346,7 @@ mod tests {
             "interval": 0,
             "message": "go enter the code"
         }"#;
-        let parsed: DeviceCodePhaseOneResponse = azure_core::json::from_json(body)?;
+        let parsed: DeviceCodePhaseOneResponse = from_json(body)?;
         assert_eq!(parsed.interval, 1);
         Ok(())
     }
