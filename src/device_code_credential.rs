@@ -396,7 +396,7 @@ mod tests {
 
         // Trigger a request path. The recorder will short-circuit so this
         // call necessarily fails; the test only inspects the hit counter.
-        let _ = credential.get_token(&["scope"], None).await;
+        let _token = credential.get_token(&["scope"], None).await;
         assert!(
             hits.load(Ordering::SeqCst) >= 1,
             "the caller-supplied pipeline was never invoked",
