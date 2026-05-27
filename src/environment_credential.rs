@@ -223,7 +223,7 @@ mod tests {
 
     impl Drop for TempFile {
         fn drop(&mut self) {
-            let _ = fs::remove_file(&self.path);
+            let _result = fs::remove_file(&self.path);
         }
     }
 

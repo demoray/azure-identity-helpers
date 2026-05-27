@@ -346,8 +346,8 @@ mod tests {
 
         // Two get_token calls with different scopes so the TokenCache
         // doesn't short-circuit the second one.
-        let _ = credential.get_token(&["scope-a"], None).await;
-        let _ = credential.get_token(&["scope-b"], None).await;
+        let _token_a = credential.get_token(&["scope-a"], None).await;
+        let _token_b = credential.get_token(&["scope-b"], None).await;
 
         assert_eq!(
             executor.which_calls.load(Ordering::SeqCst),
@@ -374,7 +374,7 @@ mod tests {
             executor.clone(),
         );
 
-        let _ = credential.get_token(&["scope-a"], None).await;
+        let _token_a = credential.get_token(&["scope-a"], None).await;
 
         let args = executor
             .last_azureauth_args
