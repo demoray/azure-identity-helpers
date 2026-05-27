@@ -183,7 +183,15 @@ mod deserialize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use azure_core::http::ClientOptions;
+    use azure_core::{
+        Bytes,
+        http::{
+            AsyncRawResponse, ClientOptions, StatusCode,
+            headers::Headers,
+            policies::{Policy, PolicyResult},
+        },
+    };
+    use std::{sync::Arc, thread};
 
     fn require_send<T: Send>(_t: T) {}
 
@@ -209,10 +217,10 @@ mod tests {
             "access_token": "a",
             "refresh_token": "r"
         }"#;
-        let response: RefreshTokenResponse = azure_core::json::from_json(body)?;
+        let response: RefreshTokenResponse = from_json(body)?;
 
         let first = response.expires_on();
-        std::thread::sleep(std::time::Duration::from_millis(20));
+        thread::sleep(Duration::from_millis(20));
         let second = response.expires_on();
 
         assert_eq!(
@@ -224,24 +232,24 @@ mod tests {
 
     #[derive(Debug)]
     struct CannedResponsePolicy {
-        status: azure_core::http::StatusCode,
+        status: StatusCode,
         body: &'static str,
     }
 
     #[async_trait::async_trait]
-    impl azure_core::http::policies::Policy for CannedResponsePolicy {
+    impl Policy for CannedResponsePolicy {
         async fn send(
             &self,
-            _ctx: &azure_core::http::Context,
-            _request: &mut azure_core::http::Request,
-            _next: &[std::sync::Arc<dyn azure_core::http::policies::Policy>],
-        ) -> azure_core::http::policies::PolicyResult {
+            _ctx: &Context,
+            _request: &mut Request,
+            _next: &[Arc<dyn Policy>],
+        ) -> PolicyResult {
             use futures::FutureExt as _;
             async move {
-                Ok(azure_core::http::AsyncRawResponse::from_bytes(
+                Ok(AsyncRawResponse::from_bytes(
                     self.status,
-                    azure_core::http::headers::Headers::new(),
-                    azure_core::Bytes::from_static(self.body.as_bytes()),
+                    Headers::new(),
+                    Bytes::from_static(self.body.as_bytes()),
                 ))
             }
             .boxed()

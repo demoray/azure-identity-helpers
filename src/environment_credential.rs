@@ -196,7 +196,7 @@ impl TokenCredential for EnvironmentCredential {
 mod tests {
     use super::*;
     use std::{
-        fs,
+        fs, io, process,
         sync::atomic::{AtomicUsize, Ordering},
     };
 
@@ -207,13 +207,13 @@ mod tests {
     }
 
     impl TempFile {
-        fn new(contents: &str) -> std::io::Result<Self> {
+        fn new(contents: &str) -> io::Result<Self> {
             // Include the process id so concurrent test runs (e.g. two
             // `cargo test` invocations sharing a CI runner, or local dev
             // alongside CI) don't collide on the same path. The
             // per-process counter still keeps suffixes unique within a
             // single run.
-            let pid = std::process::id();
+            let pid = process::id();
             let suffix = TEMP_FILE_COUNTER.fetch_add(1, Ordering::SeqCst);
             let path = env::temp_dir().join(format!("azure-identity-helpers-{pid}-{suffix}.tmp"));
             fs::write(&path, contents)?;

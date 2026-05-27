@@ -23,13 +23,13 @@
 
 use azure_core::credentials::TokenCredential;
 use azure_identity_helpers::default_azure_credential::DefaultAzureCredential;
-use std::env;
+use std::{env, error::Error};
 use tracing::info;
 
 const DEFAULT_SCOPE: &str = "https://management.core.windows.net/.default";
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()

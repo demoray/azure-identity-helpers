@@ -183,6 +183,7 @@ mod tests {
     use azure_core::credentials::Secret;
     use azure_identity::AzureCliCredential;
     use std::{
+        io,
         sync::atomic::{AtomicUsize, Ordering},
         time::Duration,
     };
@@ -361,7 +362,7 @@ mod tests {
         // Wrap an inner cause as the source of an outer azure_core::Error.
         // format_aggregate_error should follow Error::source() and surface
         // the inner message, not just the outer one.
-        let inner = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "inner-cause");
+        let inner = io::Error::new(io::ErrorKind::PermissionDenied, "inner-cause");
         let outer = Error::with_error(ErrorKind::Credential, inner, "outer-context");
 
         let formatted = format_aggregate_error(&[outer]);

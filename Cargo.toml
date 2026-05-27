@@ -40,6 +40,7 @@ suspicious = { level = "deny", priority = -1 }
 
 allow_attributes = "deny"
 allow_attributes_without_reason = "deny"
+absolute_paths = "deny"
 dbg_macro = "deny"
 empty_drop = "deny"
 empty_enum_variants_with_brackets = "deny"
