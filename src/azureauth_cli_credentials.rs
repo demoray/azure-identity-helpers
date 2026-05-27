@@ -329,6 +329,7 @@ mod tests {
 
         #[expect(
             clippy::expect_used,
+            clippy::unwrap_in_result,
             reason = "test asserts on a hard-coded valid unix timestamp"
         )]
         let expected =
