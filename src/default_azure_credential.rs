@@ -436,7 +436,10 @@ mod tests {
             .exclude_azure_cli_credential()
             .exclude_azure_developer_cli_credential();
 
-        assert!(builder.included().is_empty());
+        assert_eq!(
+            builder.included(),
+            Vec::<DefaultAzureCredentialSource>::new()
+        );
     }
 
     #[test]
