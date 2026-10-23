@@ -162,7 +162,7 @@ impl DeviceCodePhaseOneResponse {
     /// 5 seconds.
     ///
     /// [rfc]: https://datatracker.ietf.org/doc/html/rfc8628#section-3.5
-    #[must_use]
+    #[must_use = "the stream must be polled to request a token"]
     pub fn stream<'a>(
         &'a self,
         pipeline: &'a Pipeline,
